@@ -10,7 +10,11 @@ export function ProductList({ products }: { products: Product[] }) {
   const quantityOf = (id: string) => items.find((i) => i.product.id === id)?.quantity ?? 0;
 
   if (products.length === 0) {
-    return <p className="text-zinc-400">Nenhum produto disponível no momento.</p>;
+    return (
+      <p className="text-sm" style={{ color: "var(--muted)" }}>
+        Nenhum produto disponível no momento.
+      </p>
+    );
   }
 
   return (
@@ -18,38 +22,54 @@ export function ProductList({ products }: { products: Product[] }) {
       <ul className="flex flex-col gap-3">
         {products.map((product) => {
           const qty = quantityOf(product.id);
+          const outOfStock = product.stock === 0;
+
           return (
             <li
               key={product.id}
-              className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-5 py-4 shadow-sm"
+              className="flex items-center justify-between rounded-xl border px-5 py-4 transition-shadow hover:shadow-sm"
+              style={{
+                background: "var(--card)",
+                borderColor: "var(--border)",
+                opacity: outOfStock ? 0.5 : 1,
+              }}
             >
+              {/* Info */}
               <div className="flex-1 min-w-0 mr-4">
-                <p className="font-semibold">{product.name}</p>
+                <p className="font-semibold text-sm leading-tight">{product.name}</p>
                 {product.description && (
-                  <p className="text-sm text-zinc-500 truncate">{product.description}</p>
+                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--muted)" }}>
+                    {product.description}
+                  </p>
                 )}
-                <p className="font-mono text-sm text-zinc-700 mt-1">
+                <p
+                  className="text-sm font-semibold mt-1.5 tabular-nums"
+                  style={{ color: "var(--primary)" }}
+                >
                   R$ {Number(product.price).toFixed(2).replace(".", ",")}
                 </p>
               </div>
 
+              {/* Controles de quantidade */}
               <div className="flex items-center gap-2 shrink-0">
-                {qty > 0 ? (
+                {qty > 0 && (
                   <>
                     <button
                       onClick={() => remove(product.id)}
-                      className="w-8 h-8 rounded-full border border-zinc-300 flex items-center justify-center text-zinc-600 hover:bg-zinc-100 transition-colors"
+                      className="w-8 h-8 rounded-full border flex items-center justify-center text-sm font-bold transition-colors hover:bg-stone-100"
+                      style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
                       aria-label="Remover um"
                     >
                       −
                     </button>
-                    <span className="w-5 text-center font-semibold tabular-nums">{qty}</span>
+                    <span className="w-5 text-center text-sm font-bold tabular-nums">{qty}</span>
                   </>
-                ) : null}
+                )}
                 <button
                   onClick={() => add(product)}
-                  disabled={product.stock === 0}
-                  className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={outOfStock}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: outOfStock ? "var(--muted)" : "var(--primary)" }}
                   aria-label="Adicionar um"
                 >
                   +
@@ -60,17 +80,24 @@ export function ProductList({ products }: { products: Product[] }) {
         })}
       </ul>
 
+      {/* Barra flutuante do carrinho */}
       {count > 0 && (
-        <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4">
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-50">
           <Link
             href="/checkout"
-            className="flex items-center gap-4 bg-zinc-900 text-white rounded-full px-6 py-3 shadow-lg hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-4 text-white rounded-full px-6 py-3 shadow-xl transition-opacity hover:opacity-90"
+            style={{ background: "var(--primary)" }}
           >
-            <span className="bg-white text-zinc-900 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold tabular-nums">
+            <span
+              className="rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold tabular-nums"
+              style={{ background: "rgba(255,255,255,0.25)" }}
+            >
               {count}
             </span>
-            <span className="font-semibold">Ver carrinho</span>
-            <span className="font-mono">R$ {total.toFixed(2).replace(".", ",")}</span>
+            <span className="font-semibold text-sm">Ver carrinho</span>
+            <span className="font-mono text-sm tabular-nums">
+              R$ {total.toFixed(2).replace(".", ",")}
+            </span>
           </Link>
         </div>
       )}
