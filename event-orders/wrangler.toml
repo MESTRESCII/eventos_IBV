@@ -1,0 +1,12 @@
+name = "eventos-ibv"
+main = ".open-next/worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+assets = { directory = ".open-next/assets" }
+
+# Secrets (nunca colocar valores aqui — usar wrangler secret put)
+# DATABASE_URL
+
+[placement]
+mode = "smart"
