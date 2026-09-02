@@ -30,9 +30,6 @@ jobs:
 
       - name: Build for Cloudflare Workers
         run: npm run build:cf
-        env:
-          # URL dummy apenas para o build (postgres.js não conecta até a primeira query)
-          DATABASE_URL: postgresql://build:build@localhost:5432/build
 
       - name: Deploy
         run: npx wrangler deploy

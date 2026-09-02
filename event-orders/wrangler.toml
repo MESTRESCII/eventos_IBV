@@ -5,8 +5,13 @@ compatibility_flags = ["nodejs_compat"]
 
 assets = { directory = ".open-next/assets" }
 
-# Secrets (nunca colocar valores aqui — usar wrangler secret put)
-# DATABASE_URL
+# Secrets (nunca colocar valores aqui — usar `wrangler secret put <KEY>`)
+# SUPABASE_URL
+# SUPABASE_SERVICE_ROLE_KEY
 
 [placement]
 mode = "smart"
+
+[observability.logs]
+enabled = true
+invocation_logs = true

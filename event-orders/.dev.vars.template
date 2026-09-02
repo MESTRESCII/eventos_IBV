@@ -1,3 +1,6 @@
-# Copiar para .dev.vars (não commitar)
-# Usado pelo: wrangler dev (preview local do Workers)
+# Supabase — obtenha em Settings > API no painel do Supabase
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+
+# Postgres direto — apenas para migrações locais (drizzle-kit)
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
