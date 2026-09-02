@@ -44,3 +44,8 @@ next-env.d.ts
 
 # vitest
 /vitest-results/
+
+# Cloudflare / wrangler
+.open-next/
+.wrangler/
+.dev.vars
