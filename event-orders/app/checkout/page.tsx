@@ -19,8 +19,14 @@ export default function CheckoutPage() {
   if (count === 0) {
     return (
       <main className="max-w-md mx-auto px-4 py-20 text-center">
-        <p className="text-zinc-500 mb-6">Seu carrinho está vazio.</p>
-        <Link href="/" className="text-zinc-900 underline underline-offset-2">
+        <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
+          Seu carrinho está vazio.
+        </p>
+        <Link
+          href="/"
+          className="text-sm font-medium underline underline-offset-2"
+          style={{ color: "var(--primary)" }}
+        >
           Ver cardápio
         </Link>
       </main>
@@ -66,96 +72,126 @@ export default function CheckoutPage() {
     }
   }
 
+  const inputClass =
+    "w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-shadow";
+
   return (
-    <main className="max-w-md mx-auto px-4 py-12">
-      <Link href="/" className="text-sm text-zinc-500 hover:text-zinc-800 mb-8 inline-block">
-        ← Voltar ao cardápio
-      </Link>
-
-      <h1 className="text-2xl font-bold mb-6">Finalizar pedido</h1>
-
-      {/* Resumo do carrinho */}
-      <div className="bg-white border border-zinc-200 rounded-lg p-4 mb-6">
-        <h2 className="font-semibold text-sm text-zinc-500 uppercase tracking-wide mb-3">Resumo</h2>
-        <ul className="flex flex-col gap-2 mb-3">
-          {items.map((item) => (
-            <li key={item.product.id} className="flex justify-between text-sm">
-              <span>
-                {item.quantity}× {item.product.name}
-              </span>
-              <span className="font-mono">
-                R$ {(Number(item.product.price) * item.quantity).toFixed(2).replace(".", ",")}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <div className="border-t border-zinc-100 pt-3 flex justify-between font-semibold">
-          <span>Total</span>
-          <span className="font-mono">R$ {total.toFixed(2).replace(".", ",")}</span>
+    <>
+      {/* Header */}
+      <header
+        className="border-b"
+        style={{ borderColor: "var(--border)", background: "var(--card)" }}
+      >
+        <div className="max-w-md mx-auto px-4 py-4">
+          <Link href="/" className="text-xs font-medium" style={{ color: "var(--muted)" }}>
+            ← Voltar ao cardápio
+          </Link>
         </div>
-      </div>
+      </header>
 
-      {/* Formulário */}
-      <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor={`${formId}-name`}>
-            Nome completo
-          </label>
-          <input
-            id={`${formId}-name`}
-            type="text"
-            required
-            minLength={3}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Seu nome"
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500"
-          />
-        </div>
+      <main className="max-w-md mx-auto px-4 py-8">
+        <h1 className="text-xl font-bold mb-6">Finalizar pedido</h1>
 
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor={`${formId}-email`}>
-            E-mail
-          </label>
-          <input
-            id={`${formId}-email`}
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="seu@email.com"
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor={`${formId}-date`}>
-            Data de retirada
-          </label>
-          <input
-            id={`${formId}-date`}
-            type="date"
-            required
-            value={pickupDate}
-            onChange={(e) => setPickupDate(e.target.value)}
-            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500"
-          />
-        </div>
-
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-zinc-900 text-white rounded-lg px-4 py-3 font-semibold hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        {/* Resumo */}
+        <div
+          className="rounded-xl border p-4 mb-6"
+          style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
-          {loading ? "Criando pedido…" : "Confirmar pedido"}
-        </button>
-      </form>
-    </main>
+          <p
+            className="text-xs font-semibold uppercase tracking-widest mb-3"
+            style={{ color: "var(--muted)" }}
+          >
+            Resumo
+          </p>
+          <ul className="flex flex-col gap-2 mb-3">
+            {items.map((item) => (
+              <li key={item.product.id} className="flex justify-between text-sm">
+                <span>
+                  {item.quantity}× {item.product.name}
+                </span>
+                <span className="font-mono tabular-nums">
+                  R$ {(Number(item.product.price) * item.quantity).toFixed(2).replace(".", ",")}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div
+            className="border-t pt-3 flex justify-between font-semibold text-sm"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <span>Total</span>
+            <span className="font-mono tabular-nums" style={{ color: "var(--primary)" }}>
+              R$ {total.toFixed(2).replace(".", ",")}
+            </span>
+          </div>
+        </div>
+
+        {/* Formulário */}
+        <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5" htmlFor={`${formId}-name`}>
+              Nome completo
+            </label>
+            <input
+              id={`${formId}-name`}
+              type="text"
+              required
+              minLength={3}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Seu nome"
+              className={inputClass}
+              style={{ borderColor: "var(--border)" }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5" htmlFor={`${formId}-email`}>
+              E-mail
+            </label>
+            <input
+              id={`${formId}-email`}
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu@email.com"
+              className={inputClass}
+              style={{ borderColor: "var(--border)" }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5" htmlFor={`${formId}-date`}>
+              Data de retirada
+            </label>
+            <input
+              id={`${formId}-date`}
+              type="date"
+              required
+              value={pickupDate}
+              onChange={(e) => setPickupDate(e.target.value)}
+              className={inputClass}
+              style={{ borderColor: "var(--border)" }}
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2.5">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="text-white rounded-lg px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+            style={{ background: "var(--primary)" }}
+          >
+            {loading ? "Criando pedido…" : "Confirmar pedido"}
+          </button>
+        </form>
+      </main>
+    </>
   );
 }
