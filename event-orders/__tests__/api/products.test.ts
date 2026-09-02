@@ -17,8 +17,8 @@ const MOCK_PRODUCTS = [
     price: "15.00",
     stock: 100,
     active: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
   },
   {
     id: "uuid-2",
@@ -27,8 +27,8 @@ const MOCK_PRODUCTS = [
     price: "10.00",
     stock: 100,
     active: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
   },
 ];
 
@@ -38,7 +38,7 @@ describe("GET /api/products", () => {
   });
 
   it("returns active products as JSON with status 200", async () => {
-    mockFindActiveProducts.mockResolvedValueOnce(MOCK_PRODUCTS as never);
+    mockFindActiveProducts.mockResolvedValueOnce(MOCK_PRODUCTS);
 
     const response = await GET();
     const body = await response.json();

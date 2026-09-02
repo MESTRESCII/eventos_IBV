@@ -6,6 +6,7 @@ function requireEnv(key: string): string {
   return value;
 }
 
+// DATABASE_URL: usado apenas por drizzle-kit (migrations), nunca em runtime de Workers
 export const env = {
   DATABASE_URL: requireEnv("DATABASE_URL"),
 } as const;
