@@ -40,9 +40,7 @@ export const products = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [
-    index("products_active_idx").on(table.active),
-  ],
+  (table) => [index("products_active_idx").on(table.active)],
 );
 
 export const orders = pgTable(
@@ -63,13 +61,9 @@ export const orders = pgTable(
       scale: 2,
     }).notNull(),
 
-    paymentStatus: text("payment_status")
-      .notNull()
-      .default("PENDING"),
+    paymentStatus: text("payment_status").notNull().default("PENDING"),
 
-    orderStatus: text("order_status")
-      .notNull()
-      .default("CREATED"),
+    orderStatus: text("order_status").notNull().default("CREATED"),
 
     paymentId: text("payment_id"),
 
@@ -139,7 +133,5 @@ export const orderItems = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [
-    index("order_items_order_id_idx").on(table.orderId),
-  ],
+  (table) => [index("order_items_order_id_idx").on(table.orderId)],
 );
