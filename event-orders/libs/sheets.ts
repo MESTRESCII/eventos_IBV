@@ -1,8 +1,9 @@
 /**
  * Integração Google Sheets — sem dependências externas.
- * Usa node:crypto (RSA-SHA256) e fetch nativo para autenticar via Service Account.
+ * Usa Web Crypto API (RSA-SHA256) e fetch nativo para autenticar via Service Account.
+ * Compatível com Cloudflare Workers, Next.js Edge Runtime e Node.js.
  *
- * Variáveis necessárias (.env.local):
+ * Variáveis necessárias:
  *   GOOGLE_SERVICE_ACCOUNT_JSON  — JSON minificado da chave do service account
  *   GOOGLE_SHEET_ID              — ID da planilha (trecho da URL entre /d/ e /edit)
  *   GOOGLE_SHEET_NAME            — Nome da aba (default: "Pedidos")
@@ -14,8 +15,6 @@
  * Compartilhe a planilha com o e-mail do service account como Editor.
  * Todos os erros são capturados e logados — nunca interrompem o fluxo principal.
  */
-
-import { createSign } from "node:crypto";
 
 interface ServiceAccount {
   client_email: string;
@@ -50,10 +49,38 @@ function getConfig(): Config | null {
   }
 }
 
-function makeJwt(sa: ServiceAccount): string {
+// ── Web Crypto helpers ─────────────────────────────────────────────────────
+
+/** Codifica ArrayBuffer ou Uint8Array em base64url (sem padding). */
+function b64url(data: ArrayBuffer | Uint8Array): string {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+/** Codifica uma string UTF-8 em base64url. */
+function b64urlStr(str: string): string {
+  return b64url(new TextEncoder().encode(str));
+}
+
+/** Converte chave privada PEM (PKCS#8) em ArrayBuffer DER. */
+function pemToDer(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s/g, "");
+  const binary = atob(b64);
+  const buf = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+  return buf.buffer;
+}
+
+/** Gera um JWT RS256 assinado com a chave privada do Service Account. */
+async function makeJwt(sa: ServiceAccount): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const h = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
-  const p = Buffer.from(
+  const header = b64urlStr(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const payload = b64urlStr(
     JSON.stringify({
       iss: sa.client_email,
       scope: SCOPE,
@@ -61,11 +88,22 @@ function makeJwt(sa: ServiceAccount): string {
       exp: now + 3600,
       iat: now,
     }),
-  ).toString("base64url");
-  const unsigned = `${h}.${p}`;
-  const sign = createSign("RSA-SHA256");
-  sign.update(unsigned);
-  return `${unsigned}.${sign.sign(sa.private_key, "base64url")}`;
+  );
+  const unsigned = `${header}.${payload}`;
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToDer(sa.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    key,
+    new TextEncoder().encode(unsigned),
+  );
+  return `${unsigned}.${b64url(signature)}`;
 }
 
 async function getToken(sa: ServiceAccount): Promise<string> {
@@ -75,7 +113,7 @@ async function getToken(sa: ServiceAccount): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: makeJwt(sa),
+      assertion: await makeJwt(sa),
     }),
   });
   if (!res.ok) throw new Error(`OAuth: ${await res.text()}`);
