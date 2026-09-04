@@ -60,9 +60,17 @@ function OrderCard({ order, urgent }: { order: Order; urgent: boolean }) {
   );
 }
 
-export default async function DisplayPage() {
+async function fetchReadyOrders() {
   const orders = await listPaidPendingDelivery();
   const now = Date.now();
+  return orders.map((o) => ({
+    ...o,
+    isUrgent: !!o.paid_at && now - new Date(o.paid_at).getTime() > URGENT_AFTER_MS,
+  }));
+}
+
+export default async function DisplayPage() {
+  const orders = await fetchReadyOrders();
 
   return (
     <div
@@ -126,11 +134,9 @@ export default async function DisplayPage() {
             margin: "0 auto",
           }}
         >
-          {orders.map((order) => {
-            const urgent =
-              !!order.paid_at && now - new Date(order.paid_at).getTime() > URGENT_AFTER_MS;
-            return <OrderCard key={order.id} order={order} urgent={urgent} />;
-          })}
+          {orders.map((order) => (
+            <OrderCard key={order.id} order={order} urgent={order.isUrgent} />
+          ))}
         </div>
       )}
 
