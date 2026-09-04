@@ -1,35 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Order } from "@/db/repositories/orders.repository";
 
-const P_LABEL: Record<string, string> = {
-  PENDING: "Pendente",
-  PAID: "Pago",
-  FAILED: "Falhou",
-  EXPIRED: "Expirado",
-};
-const O_LABEL: Record<string, string> = {
-  CREATED: "Criado",
-  READY: "Pronto",
-  DELIVERED: "Entregue",
-  CANCELLED: "Cancelado",
-};
-const P_COLOR: Record<string, string> = {
-  PENDING: "#92400E",
-  PAID: "#166534",
-  FAILED: "#991B1B",
-  EXPIRED: "#374151",
-};
-const P_BG: Record<string, string> = {
-  PENDING: "#FFFBEB",
-  PAID: "#F0FDF4",
-  FAILED: "#FEF2F2",
-  EXPIRED: "#F3F4F6",
-};
-
-type Filter = "TODOS" | "PENDING" | "PAID" | "DELIVERED";
+type Tab = "PENDING" | "AWAITING_PREP" | "READY" | "DELIVERED";
 
 function fmtTotal(v: string) {
   return `R$ ${Number(v).toFixed(2).replace(".", ",")}`;
@@ -37,30 +12,44 @@ function fmtTotal(v: string) {
 function fmtItems(items: Order["items"]) {
   return items.map((i) => `${i.quantity}× ${i.product_name}`).join(", ");
 }
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
 
 export function OrderTable({ orders }: { orders: Order[] }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>("TODOS");
+  const [tab, setTab] = useState<Tab>("PENDING");
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const filters: Filter[] = ["TODOS", "PENDING", "PAID", "DELIVERED"];
-  const filtered = orders.filter((o) => {
-    if (filter === "TODOS") return true;
-    if (filter === "PENDING") return o.payment_status === "PENDING";
-    if (filter === "PAID") return o.payment_status === "PAID" && o.order_status !== "DELIVERED";
-    if (filter === "DELIVERED") return o.order_status === "DELIVERED";
-    return true;
-  });
+  // Auto-refresh a cada 10 segundos
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), 10_000);
+    return () => clearInterval(id);
+  }, [router]);
 
-  async function action(publicId: string, endpoint: "pay" | "deliver") {
+  const pending = orders.filter((o) => o.payment_status === "PENDING");
+  const awaitingPrep = orders.filter(
+    (o) => o.payment_status === "PAID" && o.order_status === "CREATED",
+  );
+  const ready = orders.filter((o) => o.payment_status === "PAID" && o.order_status === "READY");
+  const delivered = orders.filter((o) => o.order_status === "DELIVERED");
+
+  const sortAsc = (a: Order, b: Order) =>
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  const sortPaidAsc = (a: Order, b: Order) =>
+    new Date(a.paid_at ?? a.created_at).getTime() - new Date(b.paid_at ?? b.created_at).getTime();
+  const sortDeliveredDesc = (a: Order, b: Order) =>
+    new Date(b.delivered_at ?? b.created_at).getTime() -
+    new Date(a.delivered_at ?? a.created_at).getTime();
+
+  const displayed =
+    tab === "PENDING"
+      ? [...pending].sort(sortAsc)
+      : tab === "AWAITING_PREP"
+        ? [...awaitingPrep].sort(sortPaidAsc)
+        : tab === "READY"
+          ? [...ready].sort(sortPaidAsc)
+          : [...delivered].sort(sortDeliveredDesc);
+
+  async function action(publicId: string, endpoint: "pay" | "ready" | "deliver") {
     setLoading(`${publicId}:${endpoint}`);
     try {
       const res = await fetch(`/api/admin/orders/${publicId}/${endpoint}`, { method: "POST" });
@@ -69,9 +58,12 @@ export function OrderTable({ orders }: { orders: Order[] }) {
         setToast(data.error ?? "Erro.");
         return;
       }
-      setToast(
-        endpoint === "pay" ? `✅ ${publicId} marcado como pago.` : `📦 ${publicId} entregue.`,
-      );
+      const msgs: Record<typeof endpoint, string> = {
+        pay: `✅ ${publicId} marcado como pago.`,
+        ready: `🍽️ ${publicId} pronto para retirada.`,
+        deliver: `📦 ${publicId} entregue.`,
+      };
+      setToast(msgs[endpoint]);
       router.refresh();
     } catch {
       setToast("Erro de conexão.");
@@ -80,6 +72,13 @@ export function OrderTable({ orders }: { orders: Order[] }) {
       setTimeout(() => setToast(null), 4000);
     }
   }
+
+  const tabs: { key: Tab; label: string; count: number }[] = [
+    { key: "PENDING", label: "Pendentes", count: pending.length },
+    { key: "AWAITING_PREP", label: "Pagos", count: awaitingPrep.length },
+    { key: "READY", label: "Prontos", count: ready.length },
+    { key: "DELIVERED", label: "Entregues", count: delivered.length },
+  ];
 
   return (
     <div>
@@ -93,53 +92,41 @@ export function OrderTable({ orders }: { orders: Order[] }) {
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {filters.map((f) => (
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4 flex-wrap items-center">
+        {tabs.map((t) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            key={t.key}
+            onClick={() => setTab(t.key)}
             className="px-3 py-1 rounded-full text-xs font-semibold border transition-colors"
             style={{
-              background: filter === f ? "var(--primary)" : "var(--card)",
-              color: filter === f ? "#fff" : "var(--foreground)",
-              borderColor: filter === f ? "var(--primary)" : "var(--border)",
+              background: tab === t.key ? "var(--primary)" : "var(--card)",
+              color: tab === t.key ? "#fff" : "var(--foreground)",
+              borderColor: tab === t.key ? "var(--primary)" : "var(--border)",
             }}
           >
-            {f === "TODOS"
-              ? `Todos (${orders.length})`
-              : f === "PENDING"
-                ? `Pendentes (${orders.filter((o) => o.payment_status === "PENDING").length})`
-                : f === "PAID"
-                  ? `Pagos (${orders.filter((o) => o.payment_status === "PAID" && o.order_status !== "DELIVERED").length})`
-                  : `Entregues (${orders.filter((o) => o.order_status === "DELIVERED").length})`}
+            {t.label} ({t.count})
           </button>
         ))}
+        <span className="ml-auto text-xs" style={{ color: "var(--muted)" }}>
+          ↻ 10s
+        </span>
       </div>
 
       {/* Tabela */}
-      {filtered.length === 0 ? (
+      {displayed.length === 0 ? (
         <p className="text-sm py-8 text-center" style={{ color: "var(--muted)" }}>
-          Nenhum pedido neste filtro.
+          Nenhum pedido nesta aba.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full text-xs border-collapse">
             <thead>
               <tr style={{ background: "var(--card)", borderBottom: `1px solid var(--border)` }}>
-                {[
-                  "Código",
-                  "Nome",
-                  "Itens",
-                  "Total",
-                  "Pagamento",
-                  "Status",
-                  "Criado em",
-                  "Ações",
-                ].map((h) => (
+                {["Código", "Nome", "Itens", "Total", "Ações"].map((h) => (
                   <th
                     key={h}
-                    className="text-left px-4 py-3 font-semibold text-xs whitespace-nowrap"
+                    className="text-left px-3 py-2.5 font-semibold whitespace-nowrap"
                     style={{ color: "var(--muted)" }}
                   >
                     {h}
@@ -148,7 +135,7 @@ export function OrderTable({ orders }: { orders: Order[] }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((o, i) => (
+              {displayed.map((o, i) => (
                 <tr
                   key={o.id}
                   style={{
@@ -157,55 +144,45 @@ export function OrderTable({ orders }: { orders: Order[] }) {
                   }}
                 >
                   <td
-                    className="px-4 py-3 font-bold font-mono tracking-widest"
+                    className="px-3 py-2 font-bold font-mono tracking-widest"
                     style={{ color: "var(--primary)" }}
                   >
                     {o.public_id}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">{o.customer_name}</td>
-                  <td className="px-4 py-3 max-w-xs" style={{ color: "var(--muted)" }}>
-                    <span className="text-xs">{fmtItems(o.items)}</span>
+                  <td className="px-3 py-2 whitespace-nowrap">{o.customer_name}</td>
+                  <td className="px-3 py-2 max-w-xs" style={{ color: "var(--muted)" }}>
+                    {fmtItems(o.items)}
                   </td>
-                  <td className="px-4 py-3 font-mono whitespace-nowrap">
+                  <td className="px-3 py-2 font-mono whitespace-nowrap">
                     {fmtTotal(o.total_amount)}
                   </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                      style={{
-                        background: P_BG[o.payment_status] ?? "#F3F4F6",
-                        color: P_COLOR[o.payment_status] ?? "#374151",
-                      }}
-                    >
-                      {P_LABEL[o.payment_status] ?? o.payment_status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>
-                    {O_LABEL[o.order_status] ?? o.order_status}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-xs whitespace-nowrap"
-                    style={{ color: "var(--muted)" }}
-                  >
-                    {fmtDate(o.created_at)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1.5">
                       {o.payment_status === "PENDING" && (
                         <button
                           onClick={() => action(o.public_id, "pay")}
                           disabled={loading !== null}
-                          className="rounded-lg px-3 py-1 text-xs font-semibold text-white transition-opacity disabled:opacity-50 whitespace-nowrap"
+                          className="rounded px-2 py-1 font-semibold text-white disabled:opacity-50 whitespace-nowrap"
                           style={{ background: "#16A34A" }}
                         >
                           {loading === `${o.public_id}:pay` ? "…" : "Confirmar Pag."}
                         </button>
                       )}
-                      {o.payment_status === "PAID" && o.order_status !== "DELIVERED" && (
+                      {o.payment_status === "PAID" && o.order_status === "CREATED" && (
+                        <button
+                          onClick={() => action(o.public_id, "ready")}
+                          disabled={loading !== null}
+                          className="rounded px-2 py-1 font-semibold text-white disabled:opacity-50 whitespace-nowrap"
+                          style={{ background: "#D97706" }}
+                        >
+                          {loading === `${o.public_id}:ready` ? "…" : "Marcar Pronto"}
+                        </button>
+                      )}
+                      {o.payment_status === "PAID" && o.order_status === "READY" && (
                         <button
                           onClick={() => action(o.public_id, "deliver")}
                           disabled={loading !== null}
-                          className="rounded-lg px-3 py-1 text-xs font-semibold text-white transition-opacity disabled:opacity-50"
+                          className="rounded px-2 py-1 font-semibold text-white disabled:opacity-50"
                           style={{ background: "var(--primary)" }}
                         >
                           {loading === `${o.public_id}:deliver` ? "…" : "Entregar"}

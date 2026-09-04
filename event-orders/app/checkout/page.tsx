@@ -35,6 +35,7 @@ export default function CheckoutPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setLoading(true);
 
@@ -67,7 +68,6 @@ export default function CheckoutPage() {
       router.push(`/orders/${data.public_id}`);
     } catch {
       setError("Erro de conexão. Tente novamente.");
-    } finally {
       setLoading(false);
     }
   }
@@ -77,6 +77,10 @@ export default function CheckoutPage() {
 
   return (
     <>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+
       {/* Header */}
       <header
         className="border-b"
@@ -185,9 +189,23 @@ export default function CheckoutPage() {
           <button
             type="submit"
             disabled={loading}
-            className="text-white rounded-lg px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
+            className="text-white rounded-lg px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-70 disabled:cursor-not-allowed mt-1 flex items-center justify-center gap-2"
             style={{ background: "var(--primary)" }}
           >
+            {loading && (
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 14,
+                  height: 14,
+                  border: "2px solid rgba(255,255,255,0.4)",
+                  borderTopColor: "#fff",
+                  borderRadius: "50%",
+                  animation: "spin 0.7s linear infinite",
+                  flexShrink: 0,
+                }}
+              />
+            )}
             {loading ? "Criando pedido…" : "Confirmar pedido"}
           </button>
         </form>
