@@ -1,4 +1,7 @@
 import { getSupabaseClient } from "@/libs/supabase";
+import { isCutoffPassed } from "@/libs/cutoff";
+import { appendOrderRow } from "@/libs/sheets";
+import { findOrderByPublicId } from "@/db/repositories/orders.repository";
 import { z } from "zod";
 
 const OrderItemSchema = z.object({
@@ -15,8 +18,18 @@ const CreateOrderSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  let body: unknown;
+  // Valida prazo antes de qualquer processamento
+  if (isCutoffPassed()) {
+    return Response.json(
+      {
+        error:
+          "Pedidos encerrados. O prazo para pedidos antecipados foi até quarta-feira às 23h59. Você poderá pagar no dia do evento.",
+      },
+      { status: 422 },
+    );
+  }
 
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
@@ -45,7 +58,6 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      // Erros de negócio vindos do Postgres (estoque, produto não encontrado)
       const msg = error.message ?? "";
       if (msg.includes("Estoque insuficiente")) {
         return Response.json({ error: msg }, { status: 409 });
@@ -57,9 +69,49 @@ export async function POST(request: Request) {
       return Response.json({ error: "Erro ao criar pedido" }, { status: 500 });
     }
 
+    // Busca o pedido completo e sincroniza com Sheets (fire-and-forget)
+    const publicId = String((data as Record<string, unknown>)?.public_id ?? "");
+    void syncToSheets(publicId);
+
     return Response.json(data, { status: 201 });
   } catch (err) {
     console.error("[orders] Unexpected error:", err);
     return Response.json({ error: "Erro interno" }, { status: 500 });
+  }
+}
+
+/**
+ * Busca o pedido completo no banco e envia ao Google Sheets.
+ * Fire-and-forget — falhas são logadas, nunca interrompem o fluxo.
+ */
+async function syncToSheets(publicId: string): Promise<void> {
+  if (!publicId) return;
+  try {
+    const order = await findOrderByPublicId(publicId);
+    if (!order) {
+      console.warn("[orders] syncToSheets: pedido não encontrado:", publicId);
+      return;
+    }
+
+    const itemsSummary = order.items.map((i) => `${i.quantity}× ${i.product_name}`).join(", ");
+
+    const total = parseFloat(order.total_amount).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+
+    await appendOrderRow({
+      publicId: order.public_id,
+      customerName: order.customer_name,
+      customerEmail: order.customer_email ?? "",
+      itemsSummary,
+      total,
+      paymentStatus: order.payment_status,
+      orderStatus: order.order_status,
+      createdAt: order.created_at,
+      paidAt: order.paid_at,
+    });
+  } catch (err) {
+    console.error("[orders] syncToSheets falhou:", err);
   }
 }
