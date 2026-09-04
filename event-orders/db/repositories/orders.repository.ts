@@ -45,28 +45,54 @@ export async function listAllOrders(): Promise<Order[]> {
   return data as Order[];
 }
 
-/** Lista pedidos pagos ainda não entregues — usado pelo telão. */
-export async function listPaidPendingDelivery(): Promise<Order[]> {
+/** Lista pedidos PAGOS aguardando preparo (na cozinha). Ordem de chegada. */
+export async function listPaidAwaitingPrep(): Promise<Order[]> {
   const { data, error } = await getSupabaseClient()
     .from("orders")
     .select("*, items:order_items(*)")
     .eq("payment_status", "PAID")
-    .neq("order_status", "DELIVERED")
+    .eq("order_status", "CREATED")
     .order("paid_at", { ascending: true });
   if (error || !data) return [];
   return data as Order[];
 }
 
-/** Marca pedido como PAGO. Retorna o pedido atualizado ou null. */
+/** Lista pedidos PRONTOS para retirada — exibidos no telão. */
+export async function listPaidPendingDelivery(): Promise<Order[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("orders")
+    .select("*, items:order_items(*)")
+    .eq("payment_status", "PAID")
+    .eq("order_status", "READY")
+    .order("paid_at", { ascending: true });
+  if (error || !data) return [];
+  return data as Order[];
+}
+
+/** Marca pedido como PAGO (pagamento confirmado; aguarda preparo). */
 export async function markOrderAsPaid(publicId: string): Promise<Order | null> {
   const { data, error } = await getSupabaseClient()
     .from("orders")
     .update({
       payment_status: "PAID",
-      order_status: "READY",
       paid_at: new Date().toISOString(),
     })
     .eq("public_id", publicId)
+    .eq("payment_status", "PENDING")
+    .select("*, items:order_items(*)")
+    .single();
+  if (error || !data) return null;
+  return data as Order;
+}
+
+/** Marca pedido como PRONTO para retirada. */
+export async function markOrderAsReady(publicId: string): Promise<Order | null> {
+  const { data, error } = await getSupabaseClient()
+    .from("orders")
+    .update({ order_status: "READY" })
+    .eq("public_id", publicId)
+    .eq("payment_status", "PAID")
+    .eq("order_status", "CREATED")
     .select("*, items:order_items(*)")
     .single();
   if (error || !data) return null;

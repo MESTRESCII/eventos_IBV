@@ -17,7 +17,10 @@ export default async function AdminPage() {
 
   const totalPendente = orders.filter((o) => o.payment_status === "PENDING").length;
   const totalPago = orders.filter(
-    (o) => o.payment_status === "PAID" && o.order_status !== "DELIVERED",
+    (o) => o.payment_status === "PAID" && o.order_status === "CREATED",
+  ).length;
+  const totalPronto = orders.filter(
+    (o) => o.payment_status === "PAID" && o.order_status === "READY",
   ).length;
   const totalEntregue = orders.filter((o) => o.order_status === "DELIVERED").length;
   const totalReceita = orders
@@ -61,13 +64,14 @@ export default async function AdminPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {/* Resumo */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
           {[
             { label: "Pendentes", value: totalPendente, color: "#92400E", bg: "#FFFBEB" },
-            { label: "Pagos (aguardando)", value: totalPago, color: "#166534", bg: "#F0FDF4" },
+            { label: "Pagos (cozinha)", value: totalPago, color: "#166534", bg: "#F0FDF4" },
+            { label: "Prontos", value: totalPronto, color: "#92400E", bg: "#FEF3C7" },
             { label: "Entregues", value: totalEntregue, color: "#1D4ED8", bg: "#EFF6FF" },
             {
-              label: "Receita confirmada",
+              label: "Receita",
               value: `R$ ${totalReceita.toFixed(2).replace(".", ",")}`,
               color: "#374151",
               bg: "var(--card)",
@@ -75,13 +79,13 @@ export default async function AdminPage() {
           ].map((stat) => (
             <div
               key={stat.label}
-              className="rounded-xl border p-4"
+              className="rounded-xl border p-3"
               style={{ background: stat.bg, borderColor: "var(--border)" }}
             >
               <p className="text-xs font-medium mb-1" style={{ color: stat.color }}>
                 {stat.label}
               </p>
-              <p className="text-2xl font-bold tabular-nums" style={{ color: stat.color }}>
+              <p className="text-xl font-bold tabular-nums" style={{ color: stat.color }}>
                 {stat.value}
               </p>
             </div>
