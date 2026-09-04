@@ -4,7 +4,12 @@ import { useCart } from "@/components/cart/CartContext";
 import type { Product } from "@/db/repositories/products.repository";
 import Link from "next/link";
 
-export function ProductList({ products }: { products: Product[] }) {
+type Props = {
+  products: Product[];
+  cutoffPassed?: boolean;
+};
+
+export function ProductList({ products, cutoffPassed = false }: Props) {
   const { items, add, remove, count, total } = useCart();
 
   const quantityOf = (id: string) => items.find((i) => i.product.id === id)?.quantity ?? 0;
@@ -23,6 +28,7 @@ export function ProductList({ products }: { products: Product[] }) {
         {products.map((product) => {
           const qty = quantityOf(product.id);
           const outOfStock = product.stock === 0;
+          const disabled = outOfStock || cutoffPassed;
 
           return (
             <li
@@ -31,10 +37,9 @@ export function ProductList({ products }: { products: Product[] }) {
               style={{
                 background: "var(--card)",
                 borderColor: "var(--border)",
-                opacity: outOfStock ? 0.5 : 1,
+                opacity: disabled ? 0.5 : 1,
               }}
             >
-              {/* Info */}
               <div className="flex-1 min-w-0 mr-4">
                 <p className="font-semibold text-sm leading-tight">{product.name}</p>
                 {product.description && (
@@ -50,9 +55,8 @@ export function ProductList({ products }: { products: Product[] }) {
                 </p>
               </div>
 
-              {/* Controles de quantidade */}
               <div className="flex items-center gap-2 shrink-0">
-                {qty > 0 && (
+                {qty > 0 && !cutoffPassed && (
                   <>
                     <button
                       onClick={() => remove(product.id)}
@@ -66,10 +70,10 @@ export function ProductList({ products }: { products: Product[] }) {
                   </>
                 )}
                 <button
-                  onClick={() => add(product)}
-                  disabled={outOfStock}
+                  onClick={() => !cutoffPassed && add(product)}
+                  disabled={disabled}
                   className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{ background: outOfStock ? "var(--muted)" : "var(--primary)" }}
+                  style={{ background: disabled ? "var(--muted)" : "var(--primary)" }}
                   aria-label="Adicionar um"
                 >
                   +
@@ -80,8 +84,8 @@ export function ProductList({ products }: { products: Product[] }) {
         })}
       </ul>
 
-      {/* Barra flutuante do carrinho */}
-      {count > 0 && (
+      {/* Barra flutuante do carrinho — oculta quando encerrado */}
+      {count > 0 && !cutoffPassed && (
         <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-50">
           <Link
             href="/checkout"
