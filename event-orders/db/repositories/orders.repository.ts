@@ -12,13 +12,13 @@ export type Order = {
   id: string;
   public_id: string;
   customer_name: string;
-  customer_email: string | null;
   pickup_date: string;
   total_amount: string;
   payment_status: string;
   order_status: string;
   payment_id: string | null;
   paid_at: string | null;
+  ready_at: string | null;
   delivered_at: string | null;
   delivered_by: string | null;
   created_at: string;
@@ -64,7 +64,7 @@ export async function listPaidPendingDelivery(): Promise<Order[]> {
     .select("*, items:order_items(*)")
     .eq("payment_status", "PAID")
     .eq("order_status", "READY")
-    .order("paid_at", { ascending: true });
+    .order("ready_at", { ascending: true });
   if (error || !data) return [];
   return data as Order[];
 }
@@ -85,11 +85,14 @@ export async function markOrderAsPaid(publicId: string): Promise<Order | null> {
   return data as Order;
 }
 
-/** Marca pedido como PRONTO para retirada. */
+/** Marca pedido como PRONTO para retirada. Grava ready_at para o timer do display. */
 export async function markOrderAsReady(publicId: string): Promise<Order | null> {
   const { data, error } = await getSupabaseClient()
     .from("orders")
-    .update({ order_status: "READY" })
+    .update({
+      order_status: "READY",
+      ready_at: new Date().toISOString(),
+    })
     .eq("public_id", publicId)
     .eq("payment_status", "PAID")
     .eq("order_status", "CREATED")

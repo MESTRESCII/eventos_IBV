@@ -11,8 +11,6 @@ export default function CheckoutPage() {
   const formId = useId();
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [pickupDate, setPickupDate] = useState("2026-09-15");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,8 +45,6 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer_name: name.trim(),
-          customer_email: email.trim().toLowerCase(),
-          pickup_date: pickupDate,
           idempotency_key: idempotencyKey,
           items: items.map((i) => ({
             product_id: i.product.id,
@@ -144,37 +140,6 @@ export default function CheckoutPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Seu nome"
-              className={inputClass}
-              style={{ borderColor: "var(--border)" }}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5" htmlFor={`${formId}-email`}>
-              E-mail
-            </label>
-            <input
-              id={`${formId}-email`}
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              className={inputClass}
-              style={{ borderColor: "var(--border)" }}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5" htmlFor={`${formId}-date`}>
-              Data de retirada
-            </label>
-            <input
-              id={`${formId}-date`}
-              type="date"
-              required
-              value={pickupDate}
-              onChange={(e) => setPickupDate(e.target.value)}
               className={inputClass}
               style={{ borderColor: "var(--border)" }}
             />
