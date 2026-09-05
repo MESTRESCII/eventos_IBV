@@ -1,8 +1,9 @@
 import { getSupabaseClient } from "@/libs/supabase";
-import { isCutoffPassed } from "@/libs/cutoff";
 import { appendOrderRow } from "@/libs/sheets";
 import { findOrderByPublicId } from "@/db/repositories/orders.repository";
 import { z } from "zod";
+
+const PICKUP_DATE = "2026-09-26";
 
 const OrderItemSchema = z.object({
   product_id: z.string().uuid(),
@@ -11,24 +12,11 @@ const OrderItemSchema = z.object({
 
 const CreateOrderSchema = z.object({
   customer_name: z.string().min(3).max(120),
-  customer_email: z.string().email(),
-  pickup_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
   idempotency_key: z.string().min(1).max(200),
   items: z.array(OrderItemSchema).min(1).max(20),
 });
 
 export async function POST(request: Request) {
-  // Valida prazo antes de qualquer processamento
-  if (isCutoffPassed()) {
-    return Response.json(
-      {
-        error:
-          "Pedidos encerrados. O prazo para pedidos antecipados foi até quarta-feira às 23h59. Você poderá pagar no dia do evento.",
-      },
-      { status: 422 },
-    );
-  }
-
   let body: unknown;
   try {
     body = await request.json();
@@ -44,15 +32,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const { customer_name, customer_email, pickup_date, idempotency_key, items } = parsed.data;
+  const { customer_name, idempotency_key, items } = parsed.data;
 
   try {
     const supabase = getSupabaseClient();
 
     const { data, error } = await supabase.rpc("create_order", {
       p_customer_name: customer_name,
-      p_customer_email: customer_email,
-      p_pickup_date: pickup_date,
+      p_pickup_date: PICKUP_DATE,
       p_idempotency_key: idempotency_key,
       p_items: items,
     });
@@ -103,7 +90,6 @@ async function syncToSheets(publicId: string): Promise<void> {
     await appendOrderRow({
       publicId: order.public_id,
       customerName: order.customer_name,
-      customerEmail: order.customer_email ?? "",
       itemsSummary,
       total,
       paymentStatus: order.payment_status,

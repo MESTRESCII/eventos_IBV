@@ -1,6 +1,5 @@
 import {
   boolean,
-  date,
   index,
   integer,
   numeric,
@@ -52,9 +51,7 @@ export const orders = pgTable(
 
     customerName: text("customer_name").notNull(),
 
-    customerEmail: text("customer_email"),
-
-    pickupDate: date("pickup_date").notNull(),
+    pickupDate: text("pickup_date").notNull().default("2026-09-26"),
 
     totalAmount: numeric("total_amount", {
       precision: 10,
@@ -70,6 +67,10 @@ export const orders = pgTable(
     idempotencyKey: text("idempotency_key").unique(),
 
     paidAt: timestamp("paid_at", {
+      withTimezone: true,
+    }),
+
+    readyAt: timestamp("ready_at", {
       withTimezone: true,
     }),
 

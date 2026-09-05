@@ -9,8 +9,8 @@
  *   GOOGLE_SHEET_NAME            — Nome da aba (default: "Pedidos")
  *
  * Colunas da planilha (crie manualmente a linha 1 com os cabeçalhos):
- *   A: Código | B: Nome | C: E-mail | D: Itens | E: Total
- *   F: Status Pagamento | G: Status Pedido | H: Criado em | I: Pago em
+ *   A: Código | B: Nome | C: Itens | D: Total
+ *   E: Status Pagamento | F: Status Pedido | G: Criado em | H: Pago em
  *
  * Compartilhe a planilha com o e-mail do service account como Editor.
  * Todos os erros são capturados e logados — nunca interrompem o fluxo principal.
@@ -167,7 +167,6 @@ function fmtDate(iso?: string | null, fallback = "—"): string {
 export type SheetOrderData = {
   publicId: string;
   customerName: string;
-  customerEmail: string;
   itemsSummary: string; // ex: "2x Coxinha, 1x Brigadeiro"
   total: string; // ex: "R$ 13,50"
   paymentStatus: string;
@@ -183,7 +182,7 @@ export async function appendOrderRow(order: SheetOrderData): Promise<void> {
   const cfg = getConfig();
   if (!cfg) return;
   try {
-    const range = encodeURIComponent(`${cfg.sheetName}!A:I`);
+    const range = encodeURIComponent(`${cfg.sheetName}!A:H`);
     const res = await api(
       cfg,
       `values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
@@ -193,7 +192,6 @@ export async function appendOrderRow(order: SheetOrderData): Promise<void> {
           [
             order.publicId,
             order.customerName,
-            order.customerEmail,
             order.itemsSummary,
             order.total,
             labelP(order.paymentStatus),

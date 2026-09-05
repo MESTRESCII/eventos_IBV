@@ -65,7 +65,7 @@ async function fetchReadyOrders() {
   const now = Date.now();
   return orders.map((o) => ({
     ...o,
-    isUrgent: !!o.paid_at && now - new Date(o.paid_at).getTime() > URGENT_AFTER_MS,
+    isUrgent: !!o.ready_at && now - new Date(o.ready_at).getTime() > URGENT_AFTER_MS,
   }));
 }
 
