@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Order } from "@/db/repositories/orders.repository";
 
 type Tab = "PENDING" | "AWAITING_PREP" | "READY" | "DELIVERED";
+type ForwardAction = "pay" | "ready" | "deliver";
+type ReverseAction = "unpay" | "unready" | "undeliver";
+type Action = ForwardAction | ReverseAction;
 
 function fmtTotal(v: string) {
   return `R$ ${Number(v).toFixed(2).replace(".", ",")}`;
@@ -13,13 +16,93 @@ function fmtItems(items: Order["items"]) {
   return items.map((i) => `${i.quantity}× ${i.product_name}`).join(", ");
 }
 
+function ReverseMenu({
+  publicId,
+  reverseAction,
+  reverseLabel,
+  loading,
+  onAction,
+}: {
+  publicId: string;
+  reverseAction: ReverseAction;
+  reverseLabel: string;
+  loading: string | null;
+  onAction: (id: string, action: Action) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        disabled={loading !== null}
+        title="Mais opções"
+        className="rounded px-2 py-1 font-bold disabled:opacity-50"
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          color: "var(--muted)",
+          fontSize: "1rem",
+          lineHeight: 1,
+          cursor: "pointer",
+        }}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 4px)",
+            zIndex: 50,
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "0.5rem",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            minWidth: "180px",
+            overflow: "hidden",
+          }}
+        >
+          <button
+            onClick={() => {
+              setOpen(false);
+              onAction(publicId, reverseAction);
+            }}
+            disabled={loading !== null}
+            className="w-full text-left px-3 py-2.5 text-xs font-medium transition-colors disabled:opacity-50"
+            style={{ color: "#DC2626", background: "transparent" }}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background = "#FEF2F2")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+            }
+          >
+            ↩ {reverseLabel}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function OrderTable({ orders }: { orders: Order[] }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("PENDING");
   const [loading, setLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Auto-refresh a cada 10 segundos
   useEffect(() => {
     const id = setInterval(() => router.refresh(), 10_000);
     return () => clearInterval(id);
@@ -36,6 +119,8 @@ export function OrderTable({ orders }: { orders: Order[] }) {
     new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   const sortPaidAsc = (a: Order, b: Order) =>
     new Date(a.paid_at ?? a.created_at).getTime() - new Date(b.paid_at ?? b.created_at).getTime();
+  const sortReadyAsc = (a: Order, b: Order) =>
+    new Date(a.ready_at ?? a.created_at).getTime() - new Date(b.ready_at ?? b.created_at).getTime();
   const sortDeliveredDesc = (a: Order, b: Order) =>
     new Date(b.delivered_at ?? b.created_at).getTime() -
     new Date(a.delivered_at ?? a.created_at).getTime();
@@ -46,11 +131,26 @@ export function OrderTable({ orders }: { orders: Order[] }) {
       : tab === "AWAITING_PREP"
         ? [...awaitingPrep].sort(sortPaidAsc)
         : tab === "READY"
-          ? [...ready].sort(sortPaidAsc)
+          ? [...ready].sort(sortReadyAsc)
           : [...delivered].sort(sortDeliveredDesc);
 
-  async function action(publicId: string, endpoint: "pay" | "ready" | "deliver") {
-    setLoading(`${publicId}:${endpoint}`);
+  const forwardEndpoint: Record<ForwardAction, string> = {
+    pay: "pay",
+    ready: "ready",
+    deliver: "deliver",
+  };
+  const reverseEndpoint: Record<ReverseAction, string> = {
+    unpay: "unpay",
+    unready: "unready",
+    undeliver: "undeliver",
+  };
+
+  async function action(publicId: string, act: Action) {
+    setLoading(`${publicId}:${act}`);
+    const isReverse = act.startsWith("un");
+    const endpoint = isReverse
+      ? reverseEndpoint[act as ReverseAction]
+      : forwardEndpoint[act as ForwardAction];
     try {
       const res = await fetch(`/api/admin/orders/${publicId}/${endpoint}`, { method: "POST" });
       const data = await res.json();
@@ -58,12 +158,15 @@ export function OrderTable({ orders }: { orders: Order[] }) {
         setToast(data.error ?? "Erro.");
         return;
       }
-      const msgs: Record<typeof endpoint, string> = {
+      const msgs: Record<Action, string> = {
         pay: `✅ ${publicId} marcado como pago.`,
         ready: `🍽️ ${publicId} pronto para retirada.`,
         deliver: `📦 ${publicId} entregue.`,
+        unpay: `↩ ${publicId} revertido para pendente.`,
+        unready: `↩ ${publicId} revertido para pago.`,
+        undeliver: `↩ ${publicId} revertido para pronto.`,
       };
-      setToast(msgs[endpoint]);
+      setToast(msgs[act]);
       router.refresh();
     } catch {
       setToast("Erro de conexão.");
@@ -82,7 +185,6 @@ export function OrderTable({ orders }: { orders: Order[] }) {
 
   return (
     <div>
-      {/* Toast */}
       {toast && (
         <div
           className="fixed top-4 right-4 z-50 rounded-lg border px-4 py-3 text-sm font-medium shadow-lg"
@@ -92,7 +194,6 @@ export function OrderTable({ orders }: { orders: Order[] }) {
         </div>
       )}
 
-      {/* Tabs */}
       <div className="flex gap-2 mb-4 flex-wrap items-center">
         {tabs.map((t) => (
           <button
@@ -113,7 +214,6 @@ export function OrderTable({ orders }: { orders: Order[] }) {
         </span>
       </div>
 
-      {/* Tabela */}
       {displayed.length === 0 ? (
         <p className="text-sm py-8 text-center" style={{ color: "var(--muted)" }}>
           Nenhum pedido nesta aba.
@@ -157,7 +257,8 @@ export function OrderTable({ orders }: { orders: Order[] }) {
                     {fmtTotal(o.total_amount)}
                   </td>
                   <td className="px-3 py-2">
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1.5 items-center">
+                      {/* Ações de avanço */}
                       {o.payment_status === "PENDING" && (
                         <button
                           onClick={() => action(o.public_id, "pay")}
@@ -187,6 +288,35 @@ export function OrderTable({ orders }: { orders: Order[] }) {
                         >
                           {loading === `${o.public_id}:deliver` ? "…" : "Entregar"}
                         </button>
+                      )}
+
+                      {/* Menu ⋯ de reversão */}
+                      {o.payment_status === "PAID" && o.order_status === "CREATED" && (
+                        <ReverseMenu
+                          publicId={o.public_id}
+                          reverseAction="unpay"
+                          reverseLabel="Reverter para Pendente"
+                          loading={loading}
+                          onAction={action}
+                        />
+                      )}
+                      {o.payment_status === "PAID" && o.order_status === "READY" && (
+                        <ReverseMenu
+                          publicId={o.public_id}
+                          reverseAction="unready"
+                          reverseLabel="Reverter para Pago"
+                          loading={loading}
+                          onAction={action}
+                        />
+                      )}
+                      {o.order_status === "DELIVERED" && (
+                        <ReverseMenu
+                          publicId={o.public_id}
+                          reverseAction="undeliver"
+                          reverseLabel="Reverter para Pronto"
+                          loading={loading}
+                          onAction={action}
+                        />
                       )}
                     </div>
                   </td>

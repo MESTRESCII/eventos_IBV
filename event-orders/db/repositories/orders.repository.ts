@@ -120,3 +120,44 @@ export async function markOrderAsDelivered(
   if (error || !data) return null;
   return data as Order;
 }
+
+/** Reverte pedido PAGO → PENDENTE (desfaz confirmação de pagamento). */
+export async function markOrderAsUnpaid(publicId: string): Promise<Order | null> {
+  const { data, error } = await getSupabaseClient()
+    .from("orders")
+    .update({ payment_status: "PENDING", order_status: "CREATED", paid_at: null, ready_at: null })
+    .eq("public_id", publicId)
+    .eq("payment_status", "PAID")
+    .eq("order_status", "CREATED")
+    .select("*, items:order_items(*)")
+    .single();
+  if (error || !data) return null;
+  return data as Order;
+}
+
+/** Reverte pedido PRONTO → PAGO (volta para fila de preparo). */
+export async function markOrderAsUnready(publicId: string): Promise<Order | null> {
+  const { data, error } = await getSupabaseClient()
+    .from("orders")
+    .update({ order_status: "CREATED", ready_at: null })
+    .eq("public_id", publicId)
+    .eq("payment_status", "PAID")
+    .eq("order_status", "READY")
+    .select("*, items:order_items(*)")
+    .single();
+  if (error || !data) return null;
+  return data as Order;
+}
+
+/** Reverte pedido ENTREGUE → PRONTO (corrige entrega indevida). */
+export async function markOrderAsUndelivered(publicId: string): Promise<Order | null> {
+  const { data, error } = await getSupabaseClient()
+    .from("orders")
+    .update({ order_status: "READY", delivered_at: null, delivered_by: null })
+    .eq("public_id", publicId)
+    .eq("order_status", "DELIVERED")
+    .select("*, items:order_items(*)")
+    .single();
+  if (error || !data) return null;
+  return data as Order;
+}
