@@ -136,3 +136,40 @@ export const orderItems = pgTable(
   },
   (table) => [index("order_items_order_id_idx").on(table.orderId)],
 );
+
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+
+    provider: text("provider").notNull().default("infinitepay"),
+
+    orderNsu: text("order_nsu").notNull(),
+
+    transactionNsu: text("transaction_nsu").unique(),
+
+    invoiceSlug: text("invoice_slug"),
+
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+
+    paidAmount: numeric("paid_amount", { precision: 10, scale: 2 }),
+
+    paymentMethod: text("payment_method"),
+
+    status: text("status").notNull().default("PENDING"),
+
+    receiptUrl: text("receipt_url"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("payments_order_id_idx").on(table.orderId),
+    index("payments_order_nsu_idx").on(table.orderNsu),
+  ],
+);
