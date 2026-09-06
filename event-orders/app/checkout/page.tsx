@@ -77,14 +77,15 @@ export default function CheckoutPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/orders/${publicId}/pay-now`, { method: "POST" });
+      const res = await fetch(`/api/orders/${publicId}/payment`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Erro ao processar pagamento. Tente novamente.");
         setLoading(false);
         return;
       }
-      router.push(`/orders/${publicId}`);
+      // Redireciona para o checkout da InfinitePay
+      window.location.href = data.checkout_url;
     } catch {
       setError("Erro de conexão. Tente novamente.");
       setLoading(false);
