@@ -73,7 +73,7 @@ describe("POST /api/orders/[public_id]/payment", () => {
     mockCreateCheckout.mockResolvedValueOnce({
       checkoutUrl: "https://checkout.infinitepay.io/abc",
     });
-    mockCreatePayment.mockResolvedValueOnce({} as any);
+    mockCreatePayment.mockResolvedValueOnce({} as Awaited<ReturnType<typeof createPayment>>);
 
     const res = await POST(new Request("http://localhost"), makeParams("ABC12"));
     expect(res.status).toBe(200);
@@ -101,7 +101,7 @@ describe("POST /api/orders/[public_id]/payment", () => {
     mockCreateCheckout.mockResolvedValueOnce({
       checkoutUrl: "https://checkout.infinitepay.io/abc",
     });
-    mockCreatePayment.mockResolvedValueOnce({} as any);
+    mockCreatePayment.mockResolvedValueOnce({} as Awaited<ReturnType<typeof createPayment>>);
 
     await POST(new Request("http://localhost"), makeParams("abc12"));
     expect(mockFindOrder).toHaveBeenCalledWith("ABC12");

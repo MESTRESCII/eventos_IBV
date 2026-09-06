@@ -155,7 +155,9 @@ describe("POST /api/webhooks/infinitepay/[token]", () => {
     });
     mockFindPending.mockResolvedValueOnce(PENDING_PAYMENT);
     mockMarkPaymentPaid.mockResolvedValueOnce({ ...PENDING_PAYMENT, status: "PAID" });
-    mockMarkOrderPaid.mockResolvedValueOnce({ ...PENDING_ORDER, payment_status: "PAID" } as any);
+    mockMarkOrderPaid.mockResolvedValueOnce({ ...PENDING_ORDER, payment_status: "PAID" } as Awaited<
+      ReturnType<typeof markOrderAsPaid>
+    >);
 
     const res = await POST(makeRequest(VALID_PAYLOAD), makeParams(VALID_TOKEN));
     expect(res.status).toBe(200);
@@ -178,7 +180,9 @@ describe("POST /api/webhooks/infinitepay/[token]", () => {
     mockFindOrder.mockResolvedValueOnce(PENDING_ORDER);
     mockCheckPayment.mockResolvedValueOnce({ paid: true, amountInCents: 100 });
     mockFindPending.mockResolvedValueOnce(null); // sem registro de payment
-    mockMarkOrderPaid.mockResolvedValueOnce({ ...PENDING_ORDER, payment_status: "PAID" } as any);
+    mockMarkOrderPaid.mockResolvedValueOnce({ ...PENDING_ORDER, payment_status: "PAID" } as Awaited<
+      ReturnType<typeof markOrderAsPaid>
+    >);
 
     const res = await POST(makeRequest(VALID_PAYLOAD), makeParams(VALID_TOKEN));
     expect(res.status).toBe(200);
