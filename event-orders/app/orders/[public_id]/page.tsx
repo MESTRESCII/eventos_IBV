@@ -1,18 +1,27 @@
 import { findOrderByPublicId } from "@/db/repositories/orders.repository";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ReceiptDownload } from "./_components/ReceiptDownload";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ public_id: string }> };
+type Props = {
+  params: Promise<{ public_id: string }>;
+  searchParams: Promise<{ comprovante?: string }>;
+};
 
-export default async function OrderPage({ params }: Props) {
+export default async function OrderPage({ params, searchParams }: Props) {
   const { public_id } = await params;
+  const { comprovante } = await searchParams;
   const order = await findOrderByPublicId(public_id.toUpperCase());
 
   if (!order) notFound();
 
   const isPaid = order.payment_status === "PAID";
+  // Mostrar botão de comprovante se:
+  // - pedido pago (qualquer fluxo), OU
+  // - flagged como "pagar no evento" via ?comprovante=1
+  const showReceipt = isPaid || comprovante === "1";
 
   return (
     <>
@@ -105,6 +114,25 @@ export default async function OrderPage({ params }: Props) {
             })}
           </p>
         </div>
+
+        {/* Botão comprovante */}
+        {showReceipt && (
+          <div className="mb-4">
+            <ReceiptDownload
+              publicId={order.public_id}
+              customerName={order.customer_name}
+              items={order.items.map((i) => ({
+                id: i.id,
+                quantity: i.quantity,
+                product_name: i.product_name,
+                subtotal: i.subtotal,
+              }))}
+              totalAmount={order.total_amount}
+              isPaid={isPaid}
+              pickupDate={order.pickup_date}
+            />
+          </div>
+        )}
 
         <div className="text-center">
           <Link

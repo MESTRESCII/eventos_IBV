@@ -94,7 +94,7 @@ export default function CheckoutPage() {
 
   function handlePayLater() {
     if (!publicId) return;
-    router.push(`/orders/${publicId}`);
+    router.push(`/orders/${publicId}?comprovante=1`);
   }
 
   const inputClass =
