@@ -4,13 +4,14 @@ import { PAYMENT_STATUS, ORDER_STATUS } from "@/types";
 describe("PAYMENT_STATUS", () => {
   it("contains all required payment status values", () => {
     expect(PAYMENT_STATUS.PENDING).toBe("PENDING");
+    expect(PAYMENT_STATUS.AWAITING_PAYMENT).toBe("AWAITING_PAYMENT");
     expect(PAYMENT_STATUS.PAID).toBe("PAID");
     expect(PAYMENT_STATUS.FAILED).toBe("FAILED");
     expect(PAYMENT_STATUS.EXPIRED).toBe("EXPIRED");
   });
 
-  it("has exactly 4 statuses", () => {
-    expect(Object.keys(PAYMENT_STATUS)).toHaveLength(4);
+  it("has exactly 5 statuses", () => {
+    expect(Object.keys(PAYMENT_STATUS)).toHaveLength(5);
   });
 });
 
