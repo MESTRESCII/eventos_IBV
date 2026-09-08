@@ -30,7 +30,6 @@ const mockFindOrder = vi.mocked(findOrderByPublicId);
 const mockMarkOrderAsPaid = vi.mocked(markOrderAsPaid);
 const mockFindPendingPayment = vi.mocked(findPendingPaymentByOrderNsu);
 const mockMarkPaymentAsPaid = vi.mocked(markPaymentAsPaid);
-const mockCreatePayment = vi.mocked(createPayment);
 const mockCheckPayment = vi.mocked(checkPayment);
 const mockAppendOrderRow = vi.mocked(appendOrderRow);
 

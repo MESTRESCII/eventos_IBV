@@ -24,7 +24,7 @@ type Props = {
 
 const POLL_INTERVAL_MS = 3_000;
 const POLL_TIMEOUT_MS = 300_000; // 5 minutos
-const REDIRECT_DELAY_MS = 3_000; // 3s mostrando sucesso antes de redirecionar
+const REDIRECT_DELAY_MS = 3_000;
 
 export function ConfirmacaoClient({
   publicId,
@@ -48,21 +48,20 @@ export function ConfirmacaoClient({
   const isPaid = status === "PAID";
   const isProcessing = status === "AWAITING_PAYMENT";
 
-  // Quando pagamento é confirmado, inicia contagem e redireciona para home do evento
+  // Redirect automático após confirmação — contagem baseada em tempo (sem setState síncrono no body)
   useEffect(() => {
     if (!isPaid) return;
 
-    setRedirectCountdown(REDIRECT_DELAY_MS / 1000);
+    const startedAt = Date.now();
 
     const countInterval = setInterval(() => {
-      setRedirectCountdown((prev) => {
-        if (prev === null || prev <= 1) {
-          clearInterval(countInterval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const remaining = Math.max(
+        0,
+        Math.ceil((REDIRECT_DELAY_MS - (Date.now() - startedAt)) / 1000),
+      );
+      setRedirectCountdown(remaining);
+      if (remaining === 0) clearInterval(countInterval);
+    }, 200);
 
     const redirectTimer = setTimeout(() => {
       router.replace("/");
