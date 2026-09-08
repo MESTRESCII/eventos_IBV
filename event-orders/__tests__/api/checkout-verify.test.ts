@@ -7,7 +7,6 @@ vi.mock("@/db/repositories/orders.repository", () => ({
 vi.mock("@/db/repositories/payments.repository", () => ({
   findPendingPaymentByOrderNsu: vi.fn(),
   markPaymentAsPaid: vi.fn(),
-  createPayment: vi.fn(),
 }));
 vi.mock("@/libs/payment/infinitepay/client", () => ({
   checkPayment: vi.fn(),
@@ -20,7 +19,6 @@ import { findOrderByPublicId, markOrderAsPaid } from "@/db/repositories/orders.r
 import {
   findPendingPaymentByOrderNsu,
   markPaymentAsPaid,
-  createPayment,
 } from "@/db/repositories/payments.repository";
 import { checkPayment } from "@/libs/payment/infinitepay/client";
 import { appendOrderRow } from "@/libs/sheets";
