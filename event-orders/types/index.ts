@@ -1,8 +1,10 @@
-export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "EXPIRED";
+export type PaymentStatus = "PENDING" | "AWAITING_PAYMENT" | "PAID" | "FAILED" | "EXPIRED";
+
 export type OrderStatus = "CREATED" | "READY" | "DELIVERED" | "CANCELLED";
 
 export const PAYMENT_STATUS = {
   PENDING: "PENDING",
+  AWAITING_PAYMENT: "AWAITING_PAYMENT",
   PAID: "PAID",
   FAILED: "FAILED",
   EXPIRED: "EXPIRED",

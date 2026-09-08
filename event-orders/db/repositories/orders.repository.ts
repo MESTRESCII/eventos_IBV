@@ -40,6 +40,7 @@ export async function listAllOrders(): Promise<Order[]> {
   const { data, error } = await getSupabaseClient()
     .from("orders")
     .select("*, items:order_items(*)")
+    .neq("payment_status", "AWAITING_PAYMENT")
     .order("created_at", { ascending: false });
   if (error || !data) return [];
   return data as Order[];
@@ -78,7 +79,7 @@ export async function markOrderAsPaid(publicId: string): Promise<Order | null> {
       paid_at: new Date().toISOString(),
     })
     .eq("public_id", publicId)
-    .eq("payment_status", "PENDING")
+    .in("payment_status", ["PENDING", "AWAITING_PAYMENT"])
     .select("*, items:order_items(*)")
     .single();
   if (error || !data) return null;

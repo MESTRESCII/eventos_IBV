@@ -12,6 +12,10 @@ vi.mock("@/db/repositories/payments.repository", () => ({
 vi.mock("@/libs/payment/infinitepay/client", () => ({
   checkPayment: vi.fn(),
 }));
+vi.mock("@/libs/sheets", () => ({
+  appendOrderRow: vi.fn(),
+  updateOrderRow: vi.fn(),
+}));
 
 import { findOrderByPublicId, markOrderAsPaid } from "@/db/repositories/orders.repository";
 import {
@@ -20,6 +24,7 @@ import {
   markPaymentAsPaid,
 } from "@/db/repositories/payments.repository";
 import { checkPayment } from "@/libs/payment/infinitepay/client";
+import { appendOrderRow, updateOrderRow } from "@/libs/sheets";
 import { POST } from "@/app/api/webhooks/infinitepay/[token]/route";
 
 const mockFindOrder = vi.mocked(findOrderByPublicId);
@@ -28,6 +33,8 @@ const mockFindByTxNsu = vi.mocked(findPaymentByTransactionNsu);
 const mockFindPending = vi.mocked(findPendingPaymentByOrderNsu);
 const mockMarkPaymentPaid = vi.mocked(markPaymentAsPaid);
 const mockCheckPayment = vi.mocked(checkPayment);
+const mockAppendOrderRow = vi.mocked(appendOrderRow);
+const mockUpdateOrderRow = vi.mocked(updateOrderRow);
 
 const VALID_TOKEN = "super-secret-token-xyz";
 
@@ -46,6 +53,11 @@ const PENDING_ORDER = {
   delivered_by: null,
   created_at: "2026-09-06T00:00:00Z",
   items: [],
+};
+
+const AWAITING_ORDER = {
+  ...PENDING_ORDER,
+  payment_status: "AWAITING_PAYMENT",
 };
 
 const PENDING_PAYMENT = {
@@ -145,7 +157,7 @@ describe("POST /api/webhooks/infinitepay/[token]", () => {
     expect(mockMarkOrderPaid).not.toHaveBeenCalled();
   });
 
-  it("marca pagamento e pedido como PAID no fluxo feliz", async () => {
+  it("pedido PENDING: marca como PAID e chama updateOrderRow no Sheets", async () => {
     mockFindByTxNsu.mockResolvedValueOnce(null);
     mockFindOrder.mockResolvedValueOnce(PENDING_ORDER);
     mockCheckPayment.mockResolvedValueOnce({
@@ -155,34 +167,64 @@ describe("POST /api/webhooks/infinitepay/[token]", () => {
     });
     mockFindPending.mockResolvedValueOnce(PENDING_PAYMENT);
     mockMarkPaymentPaid.mockResolvedValueOnce({ ...PENDING_PAYMENT, status: "PAID" });
-    mockMarkOrderPaid.mockResolvedValueOnce({ ...PENDING_ORDER, payment_status: "PAID" } as Awaited<
-      ReturnType<typeof markOrderAsPaid>
-    >);
+    mockMarkOrderPaid.mockResolvedValueOnce({
+      ...PENDING_ORDER,
+      payment_status: "PAID",
+      paid_at: "2026-09-08T12:00:00Z",
+    } as Awaited<ReturnType<typeof markOrderAsPaid>>);
 
     const res = await POST(makeRequest(VALID_PAYLOAD), makeParams(VALID_TOKEN));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
 
-    expect(mockMarkPaymentPaid).toHaveBeenCalledWith(
-      "uuid-pay-1",
-      expect.objectContaining({
-        transaction_nsu: "TX-001",
-        paid_amount: 1.0,
-        payment_method: "pix",
-      }),
+    // Aguarda fire-and-forget
+    await vi.waitFor(() => expect(mockUpdateOrderRow).toHaveBeenCalled());
+    expect(mockAppendOrderRow).not.toHaveBeenCalled();
+    expect(mockUpdateOrderRow).toHaveBeenCalledWith(
+      "ABC12",
+      expect.objectContaining({ paymentStatus: "PAID" }),
     );
-    expect(mockMarkOrderPaid).toHaveBeenCalledWith("ABC12");
+  });
+
+  it("pedido AWAITING_PAYMENT: marca como PAID e chama appendOrderRow no Sheets", async () => {
+    mockFindByTxNsu.mockResolvedValueOnce(null);
+    mockFindOrder.mockResolvedValueOnce(AWAITING_ORDER);
+    mockCheckPayment.mockResolvedValueOnce({
+      paid: true,
+      amountInCents: 100,
+      paymentMethod: "pix",
+    });
+    mockFindPending.mockResolvedValueOnce(PENDING_PAYMENT);
+    mockMarkPaymentPaid.mockResolvedValueOnce({ ...PENDING_PAYMENT, status: "PAID" });
+    mockMarkOrderPaid.mockResolvedValueOnce({
+      ...AWAITING_ORDER,
+      payment_status: "PAID",
+      paid_at: "2026-09-08T12:00:00Z",
+    } as Awaited<ReturnType<typeof markOrderAsPaid>>);
+
+    const res = await POST(makeRequest(VALID_PAYLOAD), makeParams(VALID_TOKEN));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+
+    // Aguarda fire-and-forget — deve usar append (pedido nunca esteve no Sheets)
+    await vi.waitFor(() => expect(mockAppendOrderRow).toHaveBeenCalled());
+    expect(mockUpdateOrderRow).not.toHaveBeenCalled();
+    expect(mockAppendOrderRow).toHaveBeenCalledWith(
+      expect.objectContaining({ publicId: "ABC12", paymentStatus: "PAID" }),
+    );
   });
 
   it("ainda marca pedido como PAID mesmo sem payment record (pagamento manual → webhook)", async () => {
     mockFindByTxNsu.mockResolvedValueOnce(null);
     mockFindOrder.mockResolvedValueOnce(PENDING_ORDER);
     mockCheckPayment.mockResolvedValueOnce({ paid: true, amountInCents: 100 });
-    mockFindPending.mockResolvedValueOnce(null); // sem registro de payment
-    mockMarkOrderPaid.mockResolvedValueOnce({ ...PENDING_ORDER, payment_status: "PAID" } as Awaited<
-      ReturnType<typeof markOrderAsPaid>
-    >);
+    mockFindPending.mockResolvedValueOnce(null);
+    mockMarkOrderPaid.mockResolvedValueOnce({
+      ...PENDING_ORDER,
+      payment_status: "PAID",
+    } as Awaited<ReturnType<typeof markOrderAsPaid>>);
 
     const res = await POST(makeRequest(VALID_PAYLOAD), makeParams(VALID_TOKEN));
     expect(res.status).toBe(200);
@@ -196,7 +238,6 @@ describe("POST /api/webhooks/infinitepay/[token]", () => {
     mockCheckPayment.mockRejectedValueOnce(new Error("Timeout"));
 
     const res = await POST(makeRequest(VALID_PAYLOAD), makeParams(VALID_TOKEN));
-    // 500 para InfinitePay reenviar o webhook
     expect(res.status).toBe(500);
     expect(mockMarkOrderPaid).not.toHaveBeenCalled();
   });
