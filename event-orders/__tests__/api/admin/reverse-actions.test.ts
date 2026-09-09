@@ -4,6 +4,7 @@ vi.mock("@/db/repositories/orders.repository", () => ({
   markOrderAsUnpaid: vi.fn(),
   markOrderAsUnready: vi.fn(),
   markOrderAsUndelivered: vi.fn(),
+  cancelOrder: vi.fn(),
 }));
 vi.mock("@/libs/sheets", () => ({ updateOrderRow: vi.fn() }));
 
@@ -11,14 +12,17 @@ import {
   markOrderAsUnpaid,
   markOrderAsUnready,
   markOrderAsUndelivered,
+  cancelOrder,
 } from "@/db/repositories/orders.repository";
 import { POST as unpayPOST } from "@/app/api/admin/orders/[id]/unpay/route";
 import { POST as unreadyPOST } from "@/app/api/admin/orders/[id]/unready/route";
 import { POST as undeliverPOST } from "@/app/api/admin/orders/[id]/undeliver/route";
+import { POST as cancelPOST } from "@/app/api/admin/orders/[id]/cancel/route";
 
 const mockUnpaid = vi.mocked(markOrderAsUnpaid);
 const mockUnready = vi.mocked(markOrderAsUnready);
 const mockUndeliver = vi.mocked(markOrderAsUndelivered);
+const mockCancel = vi.mocked(cancelOrder);
 
 const MOCK_ORDER = {
   id: "uuid-1",
@@ -94,5 +98,28 @@ describe("POST /api/admin/orders/[id]/undeliver", () => {
     mockUndeliver.mockResolvedValueOnce(null);
     const res = await undeliverPOST(new Request("http://localhost"), makeParams("XXXXX"));
     expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/admin/orders/[id]/cancel", () => {
+  it("retorna 200 e o pedido cancelado", async () => {
+    mockCancel.mockResolvedValueOnce({ ...MOCK_ORDER, order_status: "CANCELLED" });
+    const res = await cancelPOST(new Request("http://localhost"), makeParams("ABC12"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.order.order_status).toBe("CANCELLED");
+  });
+
+  it("retorna 404 se pedido não encontrado ou não está mais pendente", async () => {
+    mockCancel.mockResolvedValueOnce(null);
+    const res = await cancelPOST(new Request("http://localhost"), makeParams("XXXXX"));
+    expect(res.status).toBe(404);
+  });
+
+  it("normaliza o id para maiúsculas", async () => {
+    mockCancel.mockResolvedValueOnce({ ...MOCK_ORDER, order_status: "CANCELLED" });
+    await cancelPOST(new Request("http://localhost"), makeParams("abc12"));
+    expect(mockCancel).toHaveBeenCalledWith("ABC12");
   });
 });

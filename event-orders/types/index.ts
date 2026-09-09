@@ -16,3 +16,16 @@ export const ORDER_STATUS = {
   DELIVERED: "DELIVERED",
   CANCELLED: "CANCELLED",
 } as const satisfies Record<OrderStatus, OrderStatus>;
+
+export type ProductCategory = "Lanches" | "Porções" | "Doces" | "Bebidas";
+
+/** Ordem de exibição das categorias no cardápio. */
+export const PRODUCT_CATEGORIES: ProductCategory[] = ["Lanches", "Porções", "Doces", "Bebidas"];
+
+/** Emoji usado como placeholder de foto enquanto não há image_url. */
+export const CATEGORY_PLACEHOLDER: Record<string, string> = {
+  Lanches: "🍔",
+  Porções: "🍟",
+  Doces: "🍩",
+  Bebidas: "🥤",
+};
