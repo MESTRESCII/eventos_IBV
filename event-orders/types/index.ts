@@ -17,15 +17,20 @@ export const ORDER_STATUS = {
   CANCELLED: "CANCELLED",
 } as const satisfies Record<OrderStatus, OrderStatus>;
 
-export type ProductCategory = "Lanches" | "Porções" | "Doces" | "Bebidas";
+export type ProductCategory = "Lanches" | "Salgados & Porções" | "Doces" | "Bebidas & Sucos";
 
 /** Ordem de exibição das categorias no cardápio. */
-export const PRODUCT_CATEGORIES: ProductCategory[] = ["Lanches", "Porções", "Doces", "Bebidas"];
+export const PRODUCT_CATEGORIES: ProductCategory[] = [
+  "Lanches",
+  "Salgados & Porções",
+  "Doces",
+  "Bebidas & Sucos",
+];
 
 /** Emoji usado como placeholder de foto enquanto não há image_url. */
 export const CATEGORY_PLACEHOLDER: Record<string, string> = {
   Lanches: "🍔",
-  Porções: "🍟",
-  Doces: "🍩",
-  Bebidas: "🥤",
+  "Salgados & Porções": "🌽",
+  Doces: "🍬",
+  "Bebidas & Sucos": "🥤",
 };
