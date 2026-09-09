@@ -16,7 +16,8 @@
     "test:coverage": "vitest run --coverage",
     "build:cf": "opennextjs-cloudflare build",
     "deploy:cf": "wrangler deploy",
-    "preview:cf": "wrangler dev"
+    "preview:cf": "wrangler dev",
+    "reconcile": "node scripts/reconcile.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

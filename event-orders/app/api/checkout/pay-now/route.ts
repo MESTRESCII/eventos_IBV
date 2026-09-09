@@ -2,6 +2,7 @@ import { getSupabaseClient } from "@/libs/supabase";
 import { findOrderByPublicId } from "@/db/repositories/orders.repository";
 import { createPayment } from "@/db/repositories/payments.repository";
 import { createCheckout } from "@/libs/payment/infinitepay/client";
+import { getBaseUrl } from "@/libs/env";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ const PayNowSchema = z.object({
  * entram no sistema quando o pagamento é efetivamente confirmado.
  */
 export async function POST(request: Request) {
-  const baseUrl = process.env.BASE_URL ?? "http://localhost:3000";
+  const baseUrl = getBaseUrl();
   const webhookToken = process.env.INFINITEPAY_WEBHOOK_TOKEN;
 
   if (!webhookToken) {

@@ -11,11 +11,37 @@ import type {
   CheckPaymentResult,
 } from "../provider";
 
+const REQUEST_TIMEOUT_MS = 10_000;
+
 function getConfig() {
   const handle = process.env.INFINITEPAY_HANDLE;
-  const apiUrl = process.env.INFINITEPAY_API_URL ?? "https://api.checkout.infinitepay.io";
+  const apiUrl = (process.env.INFINITEPAY_API_URL ?? "https://api.checkout.infinitepay.io").replace(
+    /\/+$/,
+    "",
+  );
   if (!handle) throw new Error("INFINITEPAY_HANDLE não configurado");
   return { handle, apiUrl };
+}
+
+async function postJson(url: string, body: unknown): Promise<unknown> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  const text = await res.text().catch(() => "");
+
+  if (!res.ok) {
+    throw new Error(`InfinitePay ${url} respondeu ${res.status}: ${text.slice(0, 500)}`);
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error(`InfinitePay ${url}: resposta não é JSON: ${text.slice(0, 500)}`);
+  }
 }
 
 /**
@@ -37,20 +63,8 @@ export async function createCheckout(params: CreateCheckoutParams): Promise<Crea
     webhook_url: params.webhookUrl,
   };
 
-  const res = await fetch(`${apiUrl}/links`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const data = (await postJson(`${apiUrl}/links`, body)) as CreateLinkResponse;
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "(sem corpo)");
-    throw new Error(`InfinitePay /links ${res.status}: ${text}`);
-  }
-
-  const data = (await res.json()) as CreateLinkResponse;
-
-  // Verificar campo exato na documentação oficial antes de ir a produção
   const checkoutUrl = data.url ?? (data as Record<string, unknown>)["checkout_url"];
   if (!checkoutUrl || typeof checkoutUrl !== "string") {
     throw new Error(
@@ -62,9 +76,11 @@ export async function createCheckout(params: CreateCheckoutParams): Promise<Crea
 }
 
 /**
- * Verifica se um pagamento foi confirmado na InfinitePay.
- * Fonte autoritativa — chamar após receber o webhook (webhook = campainha apenas).
+ * Consulta o status real de um pagamento na InfinitePay — fonte autoritativa.
  * POST /payment_check
+ *
+ * O webhook é apenas campainha: sempre confirmar por aqui antes de marcar como PAGO.
+ * O campo do slug na requisição é `slug` (o webhook entrega o mesmo valor como `invoice_slug`).
  */
 export async function checkPayment(params: CheckPaymentParams): Promise<CheckPaymentResult> {
   const { handle, apiUrl } = getConfig();
@@ -73,26 +89,18 @@ export async function checkPayment(params: CheckPaymentParams): Promise<CheckPay
     handle,
     order_nsu: params.orderNsu,
     transaction_nsu: params.transactionNsu,
-    ...(params.invoiceSlug ? { invoice_slug: params.invoiceSlug } : {}),
+    slug: params.invoiceSlug ?? "",
   };
 
-  const res = await fetch(`${apiUrl}/payment_check`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "(sem corpo)");
-    throw new Error(`InfinitePay /payment_check ${res.status}: ${text}`);
-  }
-
-  const data = (await res.json()) as PaymentCheckResponse;
+  const data = (await postJson(`${apiUrl}/payment_check`, body)) as PaymentCheckResponse;
 
   return {
+    // Alguns retornos omitem `success`; ausência não invalida um `paid: true` explícito.
+    success: data.success !== false,
     paid: data.paid === true,
     amountInCents: typeof data.amount === "number" ? data.amount : undefined,
-    paymentMethod: data.payment_method,
-    receiptUrl: data.receipt_url,
+    paidAmountInCents: typeof data.paid_amount === "number" ? data.paid_amount : undefined,
+    installments: typeof data.installments === "number" ? data.installments : undefined,
+    paymentMethod: typeof data.capture_method === "string" ? data.capture_method : undefined,
   };
 }

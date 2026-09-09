@@ -93,7 +93,7 @@ export async function markPaymentAsPaid(
       invoice_slug: data.invoice_slug ?? null,
       paid_amount: data.paid_amount,
       payment_method: data.payment_method ?? null,
-      receipt_url: data.receipt_url ?? null,
+      ...(data.receipt_url ? { receipt_url: data.receipt_url } : {}),
       paid_at: new Date().toISOString(),
     })
     .eq("id", paymentId)
@@ -103,4 +103,56 @@ export async function markPaymentAsPaid(
 
   if (error || !payment) return null;
   return payment as Payment;
+}
+
+export type RecordAttemptData = {
+  transaction_nsu: string;
+  invoice_slug?: string;
+  receipt_url?: string;
+};
+
+/**
+ * Guarda os identificadores da transação assim que eles chegam (webhook ou redirect),
+ * ANTES de a InfinitePay confirmar o pagamento.
+ *
+ * Sem isso, um pedido cuja confirmação falhou fica sem transaction_nsu no banco — e o
+ * payment_check, que exige esse campo, nunca pode ser refeito. É o que permite ao
+ * backstop reconciliar sozinho depois.
+ * Não sobrescreve um pagamento já PAID.
+ */
+export async function recordPaymentAttempt(
+  paymentId: string,
+  data: RecordAttemptData,
+): Promise<Payment | null> {
+  const { data: payment, error } = await getSupabaseClient()
+    .from("payments")
+    .update({
+      transaction_nsu: data.transaction_nsu,
+      invoice_slug: data.invoice_slug ?? null,
+      receipt_url: data.receipt_url ?? null,
+    })
+    .eq("id", paymentId)
+    .eq("status", "PENDING")
+    .select()
+    .single();
+
+  if (error || !payment) return null;
+  return payment as Payment;
+}
+
+/**
+ * Pagamentos PENDING que já têm transaction_nsu — ou seja, reconciliáveis via payment_check.
+ * Usado pelo backstop automático.
+ */
+export async function listReconcilablePayments(limit = 50): Promise<Payment[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("payments")
+    .select()
+    .eq("status", "PENDING")
+    .not("transaction_nsu", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error || !data) return [];
+  return data as Payment[];
 }

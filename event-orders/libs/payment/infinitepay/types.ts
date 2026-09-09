@@ -1,4 +1,7 @@
-/** Tipos das requisições e respostas da API InfinitePay Checkout Integrado. */
+/**
+ * Tipos das requisições e respostas da API InfinitePay Checkout Integrado.
+ * Referência: https://www.infinitepay.io/checkout-documentacao
+ */
 
 export interface InfinitePayItem {
   quantity: number;
@@ -15,43 +18,48 @@ export interface CreateLinkRequest {
   webhook_url: string;
 }
 
-/**
- * Resposta de POST /links.
- * Verificar campo exato na documentação: https://www.infinitepay.io/checkout-documentacao
- */
+/** Resposta de POST /links. */
 export interface CreateLinkResponse {
   url: string;
   [key: string]: unknown;
 }
 
+/**
+ * Requisição de POST /payment_check.
+ *
+ * ATENÇÃO: o campo é `slug` (não `invoice_slug`). A InfinitePay usa `invoice_slug`
+ * apenas no payload do webhook; na consulta de status o nome é `slug`.
+ */
 export interface PaymentCheckRequest {
   handle: string;
   order_nsu: string;
   transaction_nsu: string;
-  invoice_slug?: string;
+  slug: string;
 }
 
-/**
- * Resposta de POST /payment_check.
- * Verificar campos exatos na documentação oficial.
- */
+/** Resposta de POST /payment_check. */
 export interface PaymentCheckResponse {
+  success: boolean;
   paid: boolean;
-  /** Valor pago em centavos */
+  /** Valor original do pedido em centavos */
   amount?: number;
-  payment_method?: string;
-  receipt_url?: string;
+  /** Valor efetivamente pago em centavos (pode incluir taxa repassada) */
+  paid_amount?: number;
+  installments?: number;
+  /** "credit_card" | "pix" */
+  capture_method?: string;
   [key: string]: unknown;
 }
 
-/** Payload recebido no webhook. Campos mínimos garantidos pela InfinitePay. */
+/** Payload recebido no webhook. */
 export interface WebhookPayload {
   order_nsu: string;
   transaction_nsu: string;
   invoice_slug?: string;
   amount?: number;
   paid_amount?: number;
-  payment_method?: string;
+  installments?: number;
+  capture_method?: string;
   receipt_url?: string;
   [key: string]: unknown;
 }

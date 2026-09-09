@@ -36,3 +36,13 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Worker separado: dispara a reconciliação de pagamentos a cada minuto.
+      # O segredo RECONCILE_URL é configurado uma única vez, via wrangler secret put.
+      # Roda a partir de event-orders (working-directory padrão do job) para reusar o
+      # wrangler já instalado pelo npm ci — na raiz do repo não há node_modules.
+      - name: Deploy reconcile cron worker
+        run: npx wrangler deploy --config ../workers/reconcile-cron/wrangler.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
