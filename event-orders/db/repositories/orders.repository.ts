@@ -41,6 +41,7 @@ export async function listAllOrders(): Promise<Order[]> {
     .from("orders")
     .select("*, items:order_items(*)")
     .neq("payment_status", "AWAITING_PAYMENT")
+    .neq("order_status", "CANCELLED")
     .order("created_at", { ascending: false });
   if (error || !data) return [];
   return data as Order[];
@@ -161,4 +162,19 @@ export async function markOrderAsUndelivered(publicId: string): Promise<Order | 
     .single();
   if (error || !data) return null;
   return data as Order;
+}
+
+/**
+ * Cancela pedido PENDENTE (ainda não pago) e devolve os itens ao estoque.
+ * Retorna null se o pedido não existir ou não estiver mais em PENDING.
+ */
+export async function cancelOrder(publicId: string): Promise<Order | null> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase.rpc("cancel_order", { p_public_id: publicId });
+  if (error) throw error;
+
+  if (!data?.cancelled) return null;
+
+  return findOrderByPublicId(publicId);
 }

@@ -25,6 +25,10 @@ export const products = pgTable(
 
     stock: integer("stock").notNull().default(0),
 
+    category: text("category").notNull().default("Lanches"),
+
+    imageUrl: text("image_url"),
+
     active: boolean("active").notNull().default(true),
 
     createdAt: timestamp("created_at", {
@@ -39,7 +43,10 @@ export const products = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("products_active_idx").on(table.active)],
+  (table) => [
+    index("products_active_idx").on(table.active),
+    index("products_category_idx").on(table.category),
+  ],
 );
 
 export const orders = pgTable(

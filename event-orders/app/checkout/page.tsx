@@ -171,7 +171,7 @@ export default function CheckoutPage() {
                     {loading ? "Processando…" : "Pagar agora"}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                    Pix ou cartão — pagamento imediato
+                    Pix ou cartão — pagamento imediato. Evite filas no dia do evento.
                   </p>
                 </div>
               </div>
@@ -189,7 +189,7 @@ export default function CheckoutPage() {
                 <div>
                   <p className="text-sm font-bold">Pagar no evento</p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                    Pedido fica pendente até o dia 26/09
+                    Pedido fica pendente de pagamento até o dia do evento — 26/09
                   </p>
                 </div>
               </div>
