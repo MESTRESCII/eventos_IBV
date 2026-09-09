@@ -1,63 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/db/repositories/orders.repository", () => ({
-  findOrderByPublicId: vi.fn(),
-  markOrderAsPaid: vi.fn(),
-}));
-vi.mock("@/db/repositories/payments.repository", () => ({
-  findPendingPaymentByOrderNsu: vi.fn(),
-  markPaymentAsPaid: vi.fn(),
-}));
-vi.mock("@/libs/payment/infinitepay/client", () => ({
-  checkPayment: vi.fn(),
-}));
-vi.mock("@/libs/sheets", () => ({
-  appendOrderRow: vi.fn(),
-}));
+vi.mock("@/libs/payment/confirm-payment", () => ({ confirmPayment: vi.fn() }));
 
-import { findOrderByPublicId, markOrderAsPaid } from "@/db/repositories/orders.repository";
-import {
-  findPendingPaymentByOrderNsu,
-  markPaymentAsPaid,
-} from "@/db/repositories/payments.repository";
-import { checkPayment } from "@/libs/payment/infinitepay/client";
-import { appendOrderRow } from "@/libs/sheets";
+import { confirmPayment } from "@/libs/payment/confirm-payment";
 import { POST } from "@/app/api/checkout/verify/route";
 
-const mockFindOrder = vi.mocked(findOrderByPublicId);
-const mockMarkOrderAsPaid = vi.mocked(markOrderAsPaid);
-const mockFindPendingPayment = vi.mocked(findPendingPaymentByOrderNsu);
-const mockMarkPaymentAsPaid = vi.mocked(markPaymentAsPaid);
-const mockCheckPayment = vi.mocked(checkPayment);
-const mockAppendOrderRow = vi.mocked(appendOrderRow);
-
-const AWAITING_ORDER = {
-  id: "uuid-order-1",
-  public_id: "AB123",
-  customer_name: "Maria Silva",
-  pickup_date: "2026-09-26",
-  total_amount: "10.00",
-  payment_status: "AWAITING_PAYMENT",
-  order_status: "CREATED",
-  payment_id: null,
-  paid_at: null,
-  ready_at: null,
-  delivered_at: null,
-  delivered_by: null,
-  created_at: "2026-09-08T00:00:00Z",
-  items: [
-    { id: "i1", product_name: "Batata", quantity: 1, unit_price: "10.00", subtotal: "10.00" },
-  ],
-};
-
-const PENDING_PAYMENT = {
-  id: "payment-uuid-1",
-  order_id: "uuid-order-1",
-  order_nsu: "AB123",
-  amount: 10,
-  status: "PENDING",
-  transaction_nsu: null,
-};
+const mockConfirm = vi.mocked(confirmPayment);
 
 function makeRequest(body: unknown) {
   return new Request("http://localhost/api/checkout/verify", {
@@ -67,102 +15,94 @@ function makeRequest(body: unknown) {
   });
 }
 
+const VALID = { public_id: "18c50", transaction_nsu: "txn-123", invoice_slug: "slug-abc" };
+
+beforeEach(() => vi.clearAllMocks());
+
 describe("POST /api/checkout/verify", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockAppendOrderRow.mockResolvedValue(
-      undefined as unknown as ReturnType<typeof appendOrderRow> extends Promise<infer T>
-        ? T
-        : never,
-    );
-  });
-
   it("retorna 400 para JSON inválido", async () => {
-    const req = new Request("http://localhost/api/checkout/verify", {
-      method: "POST",
-      body: "not json",
-    });
-    const res = await POST(req);
-    expect(res.status).toBe(400);
-  });
-
-  it("retorna 400 para dados inválidos", async () => {
-    const res = await POST(makeRequest({}));
-    expect(res.status).toBe(400);
-  });
-
-  it("retorna 404 quando pedido não existe", async () => {
-    mockFindOrder.mockResolvedValue(null);
-    const res = await POST(makeRequest({ public_id: "NOEXIST", transaction_nsu: "txn-123" }));
-    expect(res.status).toBe(404);
-  });
-
-  it("retorna paid:true imediatamente se pedido já está PAID", async () => {
-    mockFindOrder.mockResolvedValue({
-      ...AWAITING_ORDER,
-      payment_status: "PAID",
-      paid_at: "2026-09-08T12:00:00Z",
-    });
-    const res = await POST(makeRequest({ public_id: "AB123", transaction_nsu: "txn-123" }));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.paid).toBe(true);
-    expect(body.payment_status).toBe("PAID");
-    expect(mockCheckPayment).not.toHaveBeenCalled();
-  });
-
-  it("retorna paid:false quando InfinitePay não confirma", async () => {
-    mockFindOrder.mockResolvedValue(AWAITING_ORDER);
-    mockCheckPayment.mockResolvedValue({ paid: false });
-    const res = await POST(makeRequest({ public_id: "AB123", transaction_nsu: "txn-123" }));
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.paid).toBe(false);
-    expect(mockMarkOrderAsPaid).not.toHaveBeenCalled();
-  });
-
-  it("marca pedido como PAID quando InfinitePay confirma", async () => {
-    mockFindOrder.mockResolvedValue(AWAITING_ORDER);
-    mockCheckPayment.mockResolvedValue({
-      paid: true,
-      amountInCents: 1000,
-      paymentMethod: "pix",
-      receiptUrl: "https://recibo.infinitepay.io/abc",
-    });
-    mockFindPendingPayment.mockResolvedValue(
-      PENDING_PAYMENT as unknown as ReturnType<typeof findPendingPaymentByOrderNsu> extends Promise<
-        infer T
-      >
-        ? T
-        : never,
+    const res = await POST(
+      new Request("http://localhost/api/checkout/verify", { method: "POST", body: "não é json" }),
     );
-    mockMarkPaymentAsPaid.mockResolvedValue(null);
-    mockMarkOrderAsPaid.mockResolvedValue({
-      ...AWAITING_ORDER,
-      payment_status: "PAID",
-      paid_at: "2026-09-08T12:00:00Z",
-    });
+    expect(res.status).toBe(400);
+  });
 
-    const res = await POST(makeRequest({ public_id: "AB123", transaction_nsu: "txn-123" }));
+  it("retorna 400 quando faltam campos obrigatórios", async () => {
+    const res = await POST(makeRequest({ public_id: "18C50" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("normaliza o public_id para maiúsculas antes de confirmar", async () => {
+    mockConfirm.mockResolvedValue({ outcome: "not_paid" });
+    await POST(makeRequest(VALID));
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ publicId: "18C50", source: "redirect" }),
+    );
+  });
+
+  it("repassa invoice_slug e receipt_url ao serviço de confirmação", async () => {
+    mockConfirm.mockResolvedValue({ outcome: "not_paid" });
+    await POST(makeRequest({ ...VALID, receipt_url: "https://recibo.infinitepay.io/abc" }));
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceSlug: "slug-abc",
+        receiptUrl: "https://recibo.infinitepay.io/abc",
+      }),
+    );
+  });
+
+  it("retorna paid:true quando confirmado", async () => {
+    mockConfirm.mockResolvedValue({ outcome: "confirmed", paidAt: "2026-09-08T20:05:00Z" });
+    const res = await POST(makeRequest(VALID));
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.paid).toBe(true);
-    expect(body.payment_status).toBe("PAID");
-    expect(mockMarkOrderAsPaid).toHaveBeenCalledWith("AB123");
-    expect(mockMarkPaymentAsPaid).toHaveBeenCalled();
+    await expect(res.json()).resolves.toEqual({
+      paid: true,
+      payment_status: "PAID",
+      paid_at: "2026-09-08T20:05:00Z",
+    });
   });
 
-  it("retorna 422 quando valor pago diverge do pedido", async () => {
-    mockFindOrder.mockResolvedValue(AWAITING_ORDER); // total_amount = "10.00" = 1000 cents
-    mockCheckPayment.mockResolvedValue({ paid: true, amountInCents: 500 }); // valor errado
-    const res = await POST(makeRequest({ public_id: "AB123", transaction_nsu: "txn-123" }));
-    expect(res.status).toBe(422);
+  it("retorna paid:true quando o pedido já estava pago", async () => {
+    mockConfirm.mockResolvedValue({ outcome: "already_paid", paidAt: "2026-09-08T20:05:00Z" });
+    const res = await POST(makeRequest(VALID));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ paid: true, payment_status: "PAID" });
   });
 
-  it("retorna 500 quando InfinitePay lança erro", async () => {
-    mockFindOrder.mockResolvedValue(AWAITING_ORDER);
-    mockCheckPayment.mockRejectedValue(new Error("timeout"));
-    const res = await POST(makeRequest({ public_id: "AB123", transaction_nsu: "txn-123" }));
-    expect(res.status).toBe(500);
+  it("retorna paid:false enquanto a InfinitePay não confirma", async () => {
+    mockConfirm.mockResolvedValue({ outcome: "not_paid" });
+    const res = await POST(makeRequest(VALID));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ paid: false });
+  });
+
+  it("retorna 404 quando o pedido não existe", async () => {
+    mockConfirm.mockResolvedValue({ outcome: "order_not_found" });
+    expect((await POST(makeRequest(VALID))).status).toBe(404);
+  });
+
+  it("retorna 422 quando o valor pago é menor que o pedido", async () => {
+    mockConfirm.mockResolvedValue({
+      outcome: "amount_mismatch",
+      expectedCents: 100,
+      paidCents: 50,
+    });
+    expect((await POST(makeRequest(VALID))).status).toBe(422);
+  });
+
+  it("retorna 500 quando a consulta à InfinitePay falha", async () => {
+    mockConfirm.mockResolvedValue({ outcome: "provider_error", message: "timeout" });
+    expect((await POST(makeRequest(VALID))).status).toBe(500);
+  });
+});
+
+describe("robustez do receipt_url", () => {
+  it("descarta receipt_url malformado em vez de recusar a confirmação", async () => {
+    mockConfirm.mockResolvedValue({ outcome: "confirmed", paidAt: "2026-09-08T20:05:00Z" });
+
+    const res = await POST(makeRequest({ ...VALID, receipt_url: "não é uma url" }));
+
+    expect(res.status).toBe(200);
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ receiptUrl: undefined }));
   });
 });

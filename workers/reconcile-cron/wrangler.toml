@@ -1,0 +1,16 @@
+name = "eventos-ibv-reconcile-cron"
+main = "index.js"
+compatibility_date = "2024-09-23"
+
+# A cada minuto: nenhum pedido pago fica preso por mais de ~60s, mesmo que o
+# webhook da InfinitePay se perca e o cliente feche a página.
+[triggers]
+crons = ["* * * * *"]
+
+# Segredo (nunca versionar): URL completa do endpoint, com o token no path.
+# Rodar a partir de event-orders/ (onde o wrangler está instalado), com `../`:
+#   npx wrangler secret put RECONCILE_URL --config ../workers/reconcile-cron/wrangler.toml
+# RECONCILE_URL
+
+[observability.logs]
+enabled = true

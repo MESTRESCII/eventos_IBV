@@ -9,7 +9,16 @@ const eslintConfig = defineConfig([
   // Disables ESLint rules that conflict with Prettier — must come last.
   eslintConfigPrettier,
   // Override default ignores of eslint-config-next.
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "coverage/**"]),
+  // ".open-next/**" é saída de build (bundle do Cloudflare Workers), não código-fonte:
+  // sem ignorá-la, `npm run lint` reporta centenas de erros de código gerado.
+  globalIgnores([
+    ".next/**",
+    ".open-next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "coverage/**",
+  ]),
 ]);
 
 export default eslintConfig;

@@ -1,7 +1,7 @@
 /**
  * Contrato de qualquer provedor de pagamento.
- * A implementação atual é InfinitePayProvider.
- * Para trocar de provedor: apenas criar nova implementação, sem tocar nas rotas.
+ * A implementação atual é InfinitePay.
+ * Para trocar de provedor: criar nova implementação, sem tocar nas rotas.
  */
 
 export interface CheckoutItem {
@@ -25,15 +25,22 @@ export interface CreateCheckoutResult {
 export interface CheckPaymentParams {
   orderNsu: string;
   transactionNsu: string;
+  /** invoice_slug — enviado à InfinitePay como `slug` */
   invoiceSlug?: string;
 }
 
 export interface CheckPaymentResult {
+  /** A consulta em si foi bem-sucedida (campo `success` da InfinitePay) */
+  success: boolean;
+  /** Pagamento aprovado */
   paid: boolean;
-  /** Valor pago em centavos (pode ser undefined se o provedor não retornar) */
+  /** Valor original do pedido em centavos */
   amountInCents?: number;
+  /** Valor efetivamente pago em centavos (pode incluir taxa repassada) */
+  paidAmountInCents?: number;
+  installments?: number;
+  /** "pix" | "credit_card" */
   paymentMethod?: string;
-  receiptUrl?: string;
 }
 
 export interface PaymentProvider {

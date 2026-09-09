@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Item = {
@@ -22,7 +22,7 @@ type Props = {
   pickupDate: string;
 };
 
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 2_000;
 const POLL_TIMEOUT_MS = 300_000; // 5 minutos
 const REDIRECT_DELAY_MS = 3_000;
 
@@ -41,9 +41,7 @@ export function ConfirmacaoClient({
   const [status, setStatus] = useState(initialStatus);
   const [paidAt, setPaidAt] = useState<string | null>(null);
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
-  const elapsedRef = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const verifiedRef = useRef(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   const isPaid = status === "PAID";
   const isProcessing = status === "AWAITING_PAYMENT";
@@ -73,70 +71,69 @@ export function ConfirmacaoClient({
     };
   }, [isPaid, router]);
 
-  // Verificação imediata ao chegar na página (fallback do webhook)
+  // Confirmação ativa: enquanto o pedido não fecha, consulta a InfinitePay a cada 2s.
+  //
+  // Antes a página só verificava uma vez e depois ficava relendo o banco, esperando o
+  // webhook. Se o webhook falhasse, ela girava para sempre. Agora cada ciclo pergunta à
+  // própria InfinitePay, então a confirmação acontece em segundos mesmo sem webhook.
   useEffect(() => {
-    if (!isProcessing || !transactionNsu || verifiedRef.current) return;
-    verifiedRef.current = true;
-
-    void (async () => {
-      try {
-        const res = await fetch("/api/checkout/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            public_id: publicId,
-            transaction_nsu: transactionNsu,
-            ...(invoiceSlug ? { invoice_slug: invoiceSlug } : {}),
-          }),
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          paid: boolean;
-          payment_status: string;
-          paid_at?: string;
-        };
-        if (data.paid && data.payment_status === "PAID") {
-          setStatus("PAID");
-          setPaidAt(data.paid_at ?? null);
-        }
-      } catch {
-        // silencioso — polling serve de fallback
-      }
-    })();
-  }, [publicId, transactionNsu, invoiceSlug, isProcessing]);
-
-  // Polling periódico: 3s por até 5 minutos
-  useEffect(() => {
-    if (isPaid) return;
     if (!isProcessing) return;
 
-    intervalRef.current = setInterval(async () => {
-      elapsedRef.current += POLL_INTERVAL_MS;
+    let cancelled = false;
+    const startedAt = Date.now();
 
-      if (elapsedRef.current >= POLL_TIMEOUT_MS) {
-        clearInterval(intervalRef.current!);
-        return;
-      }
+    async function checkOnce(): Promise<boolean> {
+      // Sem transaction_nsu não há como consultar a InfinitePay: só resta reler o banco,
+      // que o webhook ou o backstop atualizam.
+      const endpoint = transactionNsu ? "/api/checkout/verify" : `/api/orders/${publicId}`;
 
       try {
-        const res = await fetch(`/api/orders/${publicId}`);
-        if (!res.ok) return;
-        const data = (await res.json()) as { payment_status: string; paid_at?: string };
+        const res = transactionNsu
+          ? await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                public_id: publicId,
+                transaction_nsu: transactionNsu,
+                ...(invoiceSlug ? { invoice_slug: invoiceSlug } : {}),
+                ...(receiptUrl ? { receipt_url: receiptUrl } : {}),
+              }),
+            })
+          : await fetch(endpoint);
 
-        if (data.payment_status === "PAID") {
+        if (!res.ok) return false;
+
+        const data = (await res.json()) as { payment_status?: string; paid_at?: string | null };
+        if (data.payment_status !== "PAID") return false;
+
+        if (!cancelled) {
           setStatus("PAID");
           setPaidAt(data.paid_at ?? null);
-          clearInterval(intervalRef.current!);
         }
+        return true;
       } catch {
-        // silencioso
+        return false;
       }
+    }
+
+    void checkOnce();
+
+    const interval = setInterval(() => {
+      if (Date.now() - startedAt >= POLL_TIMEOUT_MS) {
+        clearInterval(interval);
+        if (!cancelled) setTimedOut(true);
+        return;
+      }
+      void checkOnce().then((done) => {
+        if (done) clearInterval(interval);
+      });
     }, POLL_INTERVAL_MS);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      cancelled = true;
+      clearInterval(interval);
     };
-  }, [publicId, isPaid, isProcessing]);
+  }, [publicId, transactionNsu, invoiceSlug, receiptUrl, isProcessing]);
 
   const formattedPickupDate = new Date(pickupDate).toLocaleDateString("pt-BR", {
     timeZone: "UTC",
@@ -219,11 +216,13 @@ export function ConfirmacaoClient({
               style={{ background: "#D4B86A" }}
             />
             <p className="text-sm font-semibold" style={{ color: "#7A5F10" }}>
-              Verificando pagamento…
+              {timedOut ? "Aguardando confirmação…" : "Verificando pagamento…"}
             </p>
           </div>
           <p className="text-xs leading-relaxed" style={{ color: "#8B7040" }}>
-            Confirmando com a InfinitePay. Esta página atualiza automaticamente.
+            {timedOut
+              ? "A confirmação está demorando mais que o normal. Se o pagamento já foi feito, ele será confirmado automaticamente em instantes — guarde o código do pedido."
+              : "Confirmando com a InfinitePay. Esta página atualiza automaticamente."}
           </p>
         </div>
       )}
