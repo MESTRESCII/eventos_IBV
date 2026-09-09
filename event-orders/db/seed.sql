@@ -1,3 +1,0 @@
--- ⚠️ Este arquivo NÃO é usado. O seed real aplicado por `npx supabase db reset`
--- é supabase/seed.sql (ver supabase/config.toml → [db.seed] sql_paths).
--- Mantido vazio de propósito para não haver dois cardápios divergentes.
